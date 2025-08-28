@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dGateway Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --light-bg: #ecf0f1;
+            --dark-text: #2c3e50;
+            --light-text: #ffffff;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+            --tag-bg: #e0e0e0;
+            --tag-text: #333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark-text);
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #fff;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--light-text);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .language-selector {
+            padding: 0.5rem;
+            border: none;
+            border-radius: var(--border-radius);
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .language-selector:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .language-selector:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+
+        header h1 {
+            font-weight: 500;
+            font-size: 1.8rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #27ae60;
+            transform: translateY(-2px);
+        }
+
+        .btn i {
+            margin-right: 0.5rem;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+            transform: translateY(-2px);
+        }
+
+        main {
+            padding: 2rem;
+        }
+
+        .filter-form {
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            background-color: #f8f9fa;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .filter-header {
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .filter-header h3 {
+            margin: 0;
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+
+        .filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group.full-width {
+            flex: 1 1 100%;
+        }
+
+        .filter-group.label {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+
+        .filter-group label {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+
+        .filter-group input, .filter-group select {
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-family: 'Roboto', sans-serif;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .filter-group input:focus, .filter-group select:focus {
+            border-color: var(--secondary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        .filter-group .btn {
+            height: calc(2.75rem + 2px); /* Match input height with padding */
+            padding: 0 1.5rem;
+        }
+
+        .date-group {
+            flex: 2;
+        }
+
+        .date-inputs {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .date-inputs input {
+            flex: 1;
+        }
+
+        .date-inputs span {
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+
+        .button-group {
+            flex-direction: row;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            align-self: flex-end;
+            min-width: 200px;
+        }
+
+        .button-group .btn {
+            flex: none;
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .pagination-info {
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+
+        .pagination-buttons {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pagination-buttons input {
+            width: 60px;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            text-align: center;
+        }
+
+        .page-size-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .page-size-selector select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+        }
+
+        @media (max-width: 768px) {
+            .filter-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1rem;
+            }
+            
+            .filter-group {
+                min-width: auto;
+            }
+            
+            .date-inputs {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+            }
+            
+            .date-inputs span {
+                text-align: center;
+            }
+            
+            .button-group {
+                flex-direction: row;
+                width: 100%;
+            }
+            
+            .pagination-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .pagination-buttons {
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .filter-group .btn {
+                width: 100%;
+            }
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        thead {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.85rem;
+        }
+
+        tbody tr {
+            transition: var(--transition);
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background-color: #e3f2fd;
+            /* transform: scale(1.01); */ /* Removed scaling on hover */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            cursor: pointer;
+        }
+
+        .detail-modal, .replay-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: none;
+            border-radius: var(--border-radius);
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-weight: 500;
+            font-size: 1.5rem;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        .close-button, .button-close {
+            color: white;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .close-button:hover, .button-close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            overflow-x: auto;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            white-space: pre-wrap; /* Ensure long lines wrap */
+            word-wrap: break-word; /* Ensure long words break */
+        }
+        
+        /* Specific styles for formatted JSON */
+        .formatted-json {
+            background-color: #1a2530;
+            border-left: 4px solid #3498db;
+        }
+        
+        /* Specific styles for other formatted text (JS, XML, etc.) */
+        .formatted-text {
+            background-color: #1a2530;
+            border-left: 4px solid #2ecc71;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-family: 'Roboto', sans-serif;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            transition: var(--transition);
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            border-color: var(--secondary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        .section {
+            margin-bottom: 1.5rem;
+        }
+
+        .section h3 {
+            margin-bottom: 0.75rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .section h3 i {
+            margin-right: 0.5rem;
+        }
+
+        /* Replay form specific styles */
+        #replayURL {
+            font-family: monospace;
+        }
+
+        #replayHeaders, #replayBody {
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        .response-section {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        .response-section h3 {
+            margin-bottom: 1rem;
+        }
+
+        .response-meta {
+            background-color: #f8f9fa;
+            padding: 0.75rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .response-content {
+            margin-top: 1rem;
+        }
+
+        /* Headers table styles */
+        .headers-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            table-layout: fixed; /* Crucial for word wrapping */
+        }
+
+        .headers-table th, .headers-table td {
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            text-align: left;
+            vertical-align: top;
+            word-wrap: break-word; /* For older browsers */
+            overflow-wrap: break-word; /* Standard property, equivalent to word-wrap: break-word */
+            overflow: hidden; /* Prevents content from spilling out, works with table-layout: fixed */
+        }
+
+        .headers-table th {
+            background-color: #2c3e50; /* Dark background for header */
+            color: #ecf0f1; /* Light text for header */
+            font-weight: bold;
+        }
+
+        .headers-table td {
+            background-color: #f9f9f9; /* Light background for data cells */
+        }
+
+        .headers-table tr:nth-child(even) td {
+            background-color: #f1f1f1; /* Slightly different background for even rows */
+        }
+
+        /* Specific column widths */
+        .headers-table th:nth-child(1),
+        .headers-table td:nth-child(1) {
+            width: 30%; /* Key column */
+        }
+        .headers-table th:nth-child(2),
+        .headers-table td:nth-child(2) {
+            width: 70%; /* Value column */
+        }
+
+        /* Tag styles for header values */
+        .header-tag {
+            display: inline-block;
+            background-color: #2c3e50; /* Dark background */
+            color: #ecf0f1; /* Light text */
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin: 0.1rem;
+            font-size: 0.85em;
+            white-space: nowrap;
+        }
+
+        @keyframes fadeIn {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+
+        @keyframes slideIn {
+            from {transform: translateY(-50px); opacity: 0;}
+            to {transform: translateY(0); opacity: 1;}
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 98%;
+                margin: 10px auto;
+            }
+            
+            header {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            main {
+                padding: 1rem;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-shield-alt"></i> <span data-i18n="title">dGateway 管理面板</span></h1>
+            <div class="header-controls">
+                <select id="languageSelector" class="language-selector">
+                    <option value="zh-CN" selected>中文</option>
+                    <option value="en-US">English</option>
+                </select>
+                <button class="btn btn-danger" id="logoutButton"><i class="fas fa-sign-out-alt"></i> <span data-i18n="logout">退出登录</span></button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Filter Form -->
+            <div class="filter-form">
+                <div class="filter-header">
+                    <h3><i class="fas fa-filter"></i> <span data-i18n="filter_requests">筛选请求</span></h3>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group full-width">
+                        <label for="urlFilter"><i class="fas fa-link"></i> <span data-i18n="url_contains">URL 包含</span></label>
+                        <input type="text" id="urlFilter" placeholder="Enter URL pattern">
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group date-group">
+                        <label for="startDate"><i class="far fa-calendar-alt"></i> <span data-i18n="date_range">日期范围</span></label>
+                        <div class="date-inputs">
+                            <input type="date" id="startDate" title="Start Date">
+                            <span>to</span>
+                            <input type="date" id="endDate" title="End Date">
+                        </div>
+                    </div>
+                    <div class="filter-group button-group">
+                        <button class="btn btn-primary" id="applyFilters"><i class="fas fa-filter"></i> <span data-i18n="apply">应用</span></button>
+                        <button class="btn btn-secondary" id="clearFilters"><i class="fas fa-times"></i> <span data-i18n="clear">清除</span></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><span data-i18n="id">ID</span></th>
+                            <th><span data-i18n="timestamp">时间戳</span></th>
+                            <th><span data-i18n="method">方法</span></th>
+                            <th><span data-i18n="url">URL</span></th>
+                            <th><span data-i18n="status">状态</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestsTableBody">
+                        <!-- Requests will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div class="pagination-controls">
+                <div class="pagination-info">
+                    <span data-i18n="showing">显示</span> <span id="pageInfo">0</span> <span data-i18n="of">共</span> <span id="totalPages">0</span> <span data-i18n="pages">页</span> 
+                    (<span id="totalCount">0</span> <span data-i18n="total_requests">个请求</span>)
+                </div>
+                <div class="pagination-buttons">
+                    <button class="btn btn-secondary" id="firstPage"><i class="fas fa-angle-double-left"></i> <span data-i18n="first">首页</span></button>
+                    <button class="btn btn-secondary" id="prevPage"><i class="fas fa-angle-left"></i> <span data-i18n="previous">上一页</span></button>
+                    <input type="number" id="pageInput" min="1" value="1">
+                    <button class="btn btn-secondary" id="nextPage"><span data-i18n="next">下一页</span> <i class="fas fa-angle-right"></i></button>
+                    <button class="btn btn-secondary" id="lastPage"><span data-i18n="last">末页</span> <i class="fas fa-angle-double-right"></i></button>
+                </div>
+                <div class="page-size-selector">
+                    <label for="pageSize"><span data-i18n="page_size">每页显示</span>:</label>
+                    <select id="pageSize">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Request Detail Modal -->
+    <div id="requestDetailModal" class="detail-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> <span data-i18n="request_details">请求详情</span></h2>
+                <button class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="detailContent">
+                    <!-- Details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" id="replayButton"><i class="fas fa-redo"></i> <span data-i18n="replay_request">重放请求</span></button>
+                <button class="btn btn-primary" id="closeDetailModalButton"><i class="fas fa-times"></i> <span data-i18n="close">关闭</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Replay Modal (for editing parameters) -->
+    <div id="replayModal" class="replay-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-bolt"></i> <span data-i18n="replay_request">重放请求</span></h2>
+                <button class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="replayForm">
+                    <div class="section">
+                        <label for="replayMethod"><span data-i18n="method">方法</span>:</label>
+                        <input type="text" id="replayMethod" name="method" readonly>
+                    </div>
+
+                    <div class="section">
+                        <label for="replayURL"><span data-i18n="url">URL</span>:</label>
+                        <input type="text" id="replayURL" name="url">
+                    </div>
+
+                    <div class="section">
+                        <label for="replayHeaders"><span data-i18n="request_headers">请求头</span> (JSON):</label>
+                        <textarea id="replayHeaders" name="headers" rows="8"></textarea>
+                    </div>
+
+                    <div class="section">
+                        <label for="replayBody"><span data-i18n="request_body">请求体</span>:</label>
+                        <textarea id="replayBody" name="body" rows="10"></textarea>
+                    </div>
+                </form>
+                
+                <div class="response-section">
+                    <h3><i class="fas fa-reply"></i> <span data-i18n="replay_response">重放响应</span></h3>
+                    <div class="response-meta" id="replayResponseMeta"><span data-i18n="status">状态</span>: - | <span data-i18n="timestamp">时间</span>: -</div>
+                    <div class="response-content">
+                        <div id="replayResponseHeaders"><span data-i18n="headers_will_appear_here">头部信息将显示在这里...</span></div>
+                        <pre id="replayResponseBody"><span data-i18n="body_will_appear_here">响应体将显示在这里...</span></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" form="replayForm" class="btn btn-success"><i class="fas fa-paper-plane"></i> <span data-i18n="send_replay">发送重放</span></button>
+                <button type="button" class="btn btn-primary" id="closeReplayModalButton"><i class="fas fa-times"></i> <span data-i18n="close">关闭</span></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // I18n module
+        const i18n = (function() {
+            let currentLang = 'zh-CN'; // Default language
+            let translations = {};
+
+            // Load language package
+            async function loadLanguage(lang) {
+                try {
+                    const response = await fetch(`/i18n/${lang}.json`);
+                    if (!response.ok) {
+                        throw new Error(`Failed to load language file: ${lang}`);
+                    }
+                    translations = await response.json();
+                    currentLang = lang;
+                    applyTranslations();
+                } catch (error) {
+                    console.error('Error loading language file:', error);
+                }
+            }
+
+            // Apply translations to elements with data-i18n attribute
+            function applyTranslations() {
+                document.querySelectorAll('[data-i18n]').forEach(element => {
+                    const key = element.getAttribute('data-i18n');
+                    if (translations[key]) {
+                        // Special handling for placeholder attributes
+                        if (element.tagName === 'INPUT' && 
+                            (element.type === 'text' || element.type === 'date')) {
+                            element.placeholder = translations[key];
+                        } else if (element.tagName === 'INPUT' && element.type === 'text') {
+                            // For other text inputs that might not be placeholders, 
+                            // we might need a different approach if they have default values
+                            // that need translation. For now, just placeholder.
+                        } else {
+                            // For other elements, set textContent
+                            element.textContent = translations[key];
+                        }
+                    }
+                });
+                
+                // Update language selector to reflect current language
+                const languageSelector = document.getElementById('languageSelector');
+                if (languageSelector) {
+                    languageSelector.value = currentLang;
+                }
+            }
+
+            // Get a translated string by key
+            function t(key) {
+                return translations[key] || key;
+            }
+
+            return {
+                loadLanguage,
+                t
+            };
+        })();
+
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize i18n with browser language or default
+            const browserLang = navigator.language || navigator.languages[0];
+            const supportedLangs = ['zh-CN', 'en-US'];
+            let initialLang = 'zh-CN'; // default
+            
+            if (supportedLangs.includes(browserLang)) {
+                initialLang = browserLang;
+            }
+            
+            // Load initial language
+            await i18n.loadLanguage(initialLang);
+
+            // Set up language selector change event
+            const languageSelector = document.getElementById('languageSelector');
+            if (languageSelector) {
+                languageSelector.addEventListener('change', function() {
+                    i18n.loadLanguage(this.value);
+                });
+            }
+
+            // Your existing code starts here
+            const requestsTableBody = document.getElementById('requestsTableBody');
+            const requestDetailModal = document.getElementById('requestDetailModal');
+            const detailContent = document.getElementById('detailContent');
+            const closeButtons = document.querySelectorAll('.close-button');
+            const replayButton = document.getElementById('replayButton');
+            const replayModal = document.getElementById('replayModal');
+            const replayForm = document.getElementById('replayForm');
+            const replayResponseHeadersDiv = document.getElementById('replayResponseHeaders');
+            const replayResponseBodyDiv = document.getElementById('replayResponseBody');
+            const replayResponseMetaDiv = document.getElementById('replayResponseMeta');
+            const logoutButton = document.getElementById('logoutButton');
+
+            // Filter elements
+            const urlFilterInput = document.getElementById('urlFilter');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const applyFiltersButton = document.getElementById('applyFilters');
+            const clearFiltersButton = document.getElementById('clearFilters');
+
+            // Pagination elements
+            const firstPageButton = document.getElementById('firstPage');
+            const prevPageButton = document.getElementById('prevPage');
+            const nextPageButton = document.getElementById('nextPage');
+            const lastPageButton = document.getElementById('lastPage');
+            const pageInput = document.getElementById('pageInput');
+            const pageSizeSelect = document.getElementById('pageSize');
+            const pageInfoSpan = document.getElementById('pageInfo');
+            const totalPagesSpan = document.getElementById('totalPages');
+            const totalCountSpan = document.getElementById('totalCount');
+
+            let currentRequestData = null; // To store data of the request being viewed/replayed
+            let currentPage = 1;
+            let pageSize = 25;
+            let currentFilters = {
+                url: '',
+                startDate: '',
+                endDate: ''
+            };
+            let totalPages = 0;
+            let totalCount = 0;
+
+            // Initialize date inputs with today and 7 days ago
+            function initializeDateInputs() {
+                const today = new Date();
+                const sevenDaysAgo = new Date(today);
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                
+                // Format as YYYY-MM-DD
+                const todayStr = today.toISOString().split('T')[0];
+                const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+                
+                endDateInput.value = todayStr;
+                startDateInput.value = sevenDaysAgoStr;
+                
+                // Set current filters
+                currentFilters.startDate = sevenDaysAgoStr;
+                currentFilters.endDate = todayStr;
+            }
+
+            async function fetchRequests(page = 1, size = 25, filters = {}) {
+                try {
+                    // Build query parameters
+                    const params = new URLSearchParams();
+                    params.append('page', page);
+                    params.append('page_size', size);
+                    
+                    if (filters.url) {
+                        params.append('url', filters.url);
+                    }
+                    if (filters.startDate) {
+                        params.append('start_date', filters.startDate);
+                    }
+                    if (filters.endDate) {
+                        params.append('end_date', filters.endDate);
+                    }
+                    
+                    const response = await fetch(`/api/requests?${params.toString()}`);
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            window.location.href = '/login'; // Redirect to login if unauthorized
+                            return;
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    
+                    // Update pagination state
+                    currentPage = data.page;
+                    pageSize = data.page_size;
+                    totalPages = data.total_pages;
+                    totalCount = data.total_count;
+                    
+                    // Update UI
+                    updatePaginationUI();
+                    
+                    // Clear existing rows
+                    requestsTableBody.innerHTML = '';
+                    
+                    // Add rows for each request
+                    data.requests.forEach(req => {
+                        const row = requestsTableBody.insertRow();
+                        row.dataset.id = req.ID; // Store ID for detail fetching
+                        row.innerHTML = `
+                            <td>${req.ID}</td>
+                            <td>${new Date(req.Timestamp).toLocaleString()}</td>
+                            <td>${req.Method}</td>
+                            <td>${req.URL}</td>
+                            <td>${req.StatusCode}</td>
+                        `;
+                        row.addEventListener('click', () => showRequestDetails(req.ID));
+                    });
+                } catch (error) {
+                    console.error('Error fetching requests:', error);
+                    alert(i18n.t('error_fetching_requests'));
+                }
+            }
+
+            function updatePaginationUI() {
+                // Update page info
+                pageInfoSpan.textContent = currentPage;
+                totalPagesSpan.textContent = totalPages;
+                totalCountSpan.textContent = totalCount;
+                
+                // Update page input
+                pageInput.value = currentPage;
+                pageInput.max = totalPages;
+                
+                // Enable/disable navigation buttons
+                firstPageButton.disabled = currentPage === 1;
+                prevPageButton.disabled = currentPage === 1;
+                nextPageButton.disabled = currentPage === totalPages || totalPages === 0;
+                lastPageButton.disabled = currentPage === totalPages || totalPages === 0;
+                
+                // Update page size selector
+                pageSizeSelect.value = pageSize;
+            }
+
+            // Event listeners for filter controls
+            applyFiltersButton.addEventListener('click', () => {
+                currentFilters.url = urlFilterInput.value.trim();
+                currentFilters.startDate = startDateInput.value;
+                currentFilters.endDate = endDateInput.value;
+                fetchRequests(1, pageSize, currentFilters); // Reset to first page
+            });
+
+            clearFiltersButton.addEventListener('click', () => {
+                urlFilterInput.value = '';
+                initializeDateInputs();
+                currentFilters = {
+                    url: '',
+                    startDate: startDateInput.value,
+                    endDate: endDateInput.value
+                };
+                fetchRequests(1, pageSize, currentFilters); // Reset to first page
+            });
+
+            // Event listeners for pagination controls
+            firstPageButton.addEventListener('click', () => {
+                if (currentPage !== 1) {
+                    fetchRequests(1, pageSize, currentFilters);
+                }
+            });
+
+            prevPageButton.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    fetchRequests(currentPage - 1, pageSize, currentFilters);
+                }
+            });
+
+            nextPageButton.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    fetchRequests(currentPage + 1, pageSize, currentFilters);
+                }
+            });
+
+            lastPageButton.addEventListener('click', () => {
+                if (currentPage !== totalPages) {
+                    fetchRequests(totalPages, pageSize, currentFilters);
+                }
+            });
+
+            pageInput.addEventListener('change', () => {
+                const page = parseInt(pageInput.value);
+                if (!isNaN(page) && page >= 1 && page <= totalPages && page !== currentPage) {
+                    fetchRequests(page, pageSize, currentFilters);
+                } else {
+                    // Reset to current page if invalid
+                    pageInput.value = currentPage;
+                }
+            });
+
+            pageSizeSelect.addEventListener('change', () => {
+                const newSize = parseInt(pageSizeSelect.value);
+                if (!isNaN(newSize) && newSize !== pageSize) {
+                    pageSize = newSize;
+                    fetchRequests(1, pageSize, currentFilters); // Reset to first page
+                }
+            });
+
+            // Function to create a table with headers data
+            function createHeadersTable(headersObj) {
+                if (!headersObj || typeof headersObj !== 'object') {
+                    return `<p>${i18n.t('no_headers_available')}</p>`;
+                }
+                
+                let tableHTML = '<table class="headers-table"><thead><tr><th>Key</th><th>Value(s)</th></tr></thead><tbody>';
+                
+                for (const [key, values] of Object.entries(headersObj)) {
+                    // Ensure values is an array
+                    const valuesArray = Array.isArray(values) ? values : [values];
+                    
+                    // Create tags for each value
+                    const tagsHTML = valuesArray.map(value => 
+                        `<span class="header-tag">${value}</span>`
+                    ).join('');
+                    
+                    tableHTML += `<tr><td><strong>${key}</strong></td><td>${tagsHTML}</td></tr>`;
+                }
+                
+                tableHTML += '</tbody></table>';
+                return tableHTML;
+            }
+
+            async function showRequestDetails(id) {
+                try {
+                    const response = await fetch(`/api/requests/${id}`);
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            window.location.href = '/login';
+                            return;
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const req = await response.json();
+                    currentRequestData = req; // Store for replay
+
+                    // Function to check if content type is an image or video
+                    function isMediaContentType(contentType) {
+                        // Handle case where contentType might be an array
+                        let contentTypeString = '';
+                        
+                        if (Array.isArray(contentType)) {
+                            // Join array elements into a single string
+                            contentTypeString = contentType.join(',').toLowerCase();
+                        } else if (typeof contentType === 'string') {
+                            contentTypeString = contentType.toLowerCase();
+                        } else {
+                            // If it's neither string nor array, it's not media
+                            return false;
+                        }
+                        
+                        const isImage = (
+                            contentTypeString.startsWith('image/') ||
+                            contentTypeString.includes('jpeg') ||
+                            contentTypeString.includes('png') ||
+                            contentTypeString.includes('gif') ||
+                            contentTypeString.includes('webp') ||
+                            contentTypeString.includes('svg')
+                        );
+                        
+                        const isVideo = (
+                            contentTypeString.startsWith('video/') ||
+                            contentTypeString.includes('mp4') ||
+                            contentTypeString.includes('webm') ||
+                            contentTypeString.includes('ogg') ||
+                            contentTypeString.includes('avi') ||
+                            contentTypeString.includes('mov')
+                        );
+                        
+                        return isImage || isVideo;
+                    }
+
+                    // Function to render response body based on content type
+                    function renderResponseBody(responseHeaders, responseBody) {
+                        try {
+                            const headers = JSON.parse(responseHeaders);
+                            // Try different possible header names for Content-Type
+                            const contentType = headers['Content-Type'] || 
+                                              headers['content-type'] || 
+                                              headers['Content-type'] ||
+                                              headers['Content_Type'];
+                            
+                            // Check if content type is HTML
+                            const contentTypeString = Array.isArray(contentType) ? 
+                                contentType.join(',').toLowerCase() : 
+                                (typeof contentType === 'string' ? contentType.toLowerCase() : '');
+                            
+                            const isHtmlContentType = (
+                                contentTypeString && 
+                                (contentTypeString.startsWith('text/html') || 
+                                 contentTypeString.includes('html'))
+                            );
+                            
+                            if (isMediaContentType(contentType) && responseBody) {
+                                // Try to decode the base64 encoded media data
+                                try {
+                                    // First decode to get the actual base64 media data
+                                    const decodedDataBase64 = atob(responseBody);
+                                    
+                                    // Check if it's an image or video to render appropriately
+                                    const contentTypeString = Array.isArray(contentType) ? 
+                                        contentType.join(',').toLowerCase() : 
+                                        (typeof contentType === 'string' ? contentType.toLowerCase() : '');
+                                    
+                                    if (contentTypeString.startsWith('image/') || 
+                                        contentTypeString.includes('jpeg') || 
+                                        contentTypeString.includes('png') || 
+                                        contentTypeString.includes('gif') || 
+                                        contentTypeString.includes('webp') || 
+                                        contentTypeString.includes('svg')) {
+                                        // Create a data URL for the image
+                                        const imageDataUrl = `data:${Array.isArray(contentType) ? contentType[0] : contentType};base64,${decodedDataBase64}`;
+                                        return `<img src="${imageDataUrl}" style="max-width: 100%; height: auto;" />`;
+                                    } else if (contentTypeString.startsWith('video/') || 
+                                              contentTypeString.includes('mp4') || 
+                                              contentTypeString.includes('webm') || 
+                                              contentTypeString.includes('ogg') || 
+                                              contentTypeString.includes('avi') || 
+                                              contentTypeString.includes('mov')) {
+                                        // Create a data URL for the video
+                                        const videoDataUrl = `data:${Array.isArray(contentType) ? contentType[0] : contentType};base64,${decodedDataBase64}`;
+                                        return `<video controls style="max-width: 100%; height: auto;"><source src="${videoDataUrl}" type="${Array.isArray(contentType) ? contentType[0] : contentType}">Your browser does not support the video tag.</video>`;
+                                    } else {
+                                        // Fallback for other media types
+                                        return '<p>[Media content - not displayed]</p>';
+                                    }
+                                } catch (e) {
+                                    console.error('Error creating media data URL:', e);
+                                    return '<p>[Media rendering error]</p>';
+                                }
+                            } else if (isHtmlContentType && responseBody) {
+                                // Handle HTML content by displaying it as plain text
+                                try {
+                                    // First base64 decode
+                                    const decodedBase64 = atob(atob(responseBody));
+                                    try {
+                                        // Try to decode as UTF-8
+                                        const decodedText = decodeURIComponent(escape(decodedBase64));
+                                        // Escape HTML special characters to prevent rendering
+                                        return `<pre>${decodedText.replace(/&/g, "&amp;")
+                                            .replace(/</g, "&lt;")
+                                            .replace(/>/g, "&gt;")
+                                            .replace(/"/g, "&quot;")
+                                            .replace(/'/g, "&#039;")}</pre>`;
+                                    } catch (uriError) {
+                                        // If URI decoding fails, return the raw decoded data (escaped)
+                                        console.warn('URI decoding failed for HTML, returning raw data');
+                                        return `<pre>${decodedBase64.replace(/&/g, "&amp;")
+                                            .replace(/</g, "&lt;")
+                                            .replace(/>/g, "&gt;")
+                                            .replace(/"/g, "&quot;")
+                                            .replace(/'/g, "&#039;")}</pre>`;
+                                    }
+                                } catch (e) {
+                                    console.error('Error decoding HTML response body:', e);
+                                    return '<p>[HTML Decoding Error]</p>';
+                                }
+                            } else {
+                                // Default text rendering for other content types (JSON, JS, plain text, etc.)
+                                return responseBody ? (function() { 
+                                    try { 
+                                        // First base64 decode
+                                        const decodedBase64 = atob(atob(responseBody));
+                                        let finalText = '';
+                                        try {
+                                            // Try to decode as UTF-8
+                                            finalText = decodeURIComponent(escape(decodedBase64));
+                                        } catch (uriError) {
+                                            // If URI decoding fails, return the raw decoded data
+                                            console.warn('URI decoding failed, returning raw data');
+                                            finalText = decodedBase64;
+                                        }
+                                        
+                                        // Try to parse as JSON for better formatting
+                                        try {
+                                            const jsonObj = JSON.parse(finalText);
+                                            // If it's valid JSON, return prettified JSON
+                                            return `<pre class="formatted-json">${JSON.stringify(jsonObj, null, 2)}</pre>`;
+                                        } catch (jsonError) {
+                                            // If not JSON, check for common plain text subtypes that benefit from formatting
+                                            const isFormattedText = (
+                                                contentTypeString && 
+                                                (contentTypeString.includes('javascript') || 
+                                                 contentTypeString.includes('json') ||
+                                                 contentTypeString.includes('xml'))
+                                            );
+                                            
+                                            if (isFormattedText) {
+                                                // For JS, JSON (if not caught above), XML, etc., use formatted text block
+                                                return `<pre class="formatted-text">${finalText.replace(/&/g, "&amp;")
+                                                    .replace(/</g, "&lt;")
+                                                    .replace(/>/g, "&gt;")
+                                                    .replace(/"/g, "&quot;")
+                                                    .replace(/'/g, "&#039;")}</pre>`;
+                                            } else {
+                                                // For other plain text, return as is (within pre tag for whitespace)
+                                                return `<pre>${finalText}</pre>`;
+                                            }
+                                        }
+                                    } catch (e) { 
+                                        console.error('Error decoding or formatting response body:', e); 
+                                        return '[Decoding/Formatting Error]'; 
+                                    } 
+                                })() : responseBody;
+                            }
+                        } catch (e) {
+                            console.error('Error parsing response headers or rendering body:', e);
+                            return responseBody || '[Error rendering response body]';
+                        }
+                    }
+
+                    // Parse headers for display
+                    const requestHeadersObj = JSON.parse(req.RequestHeaders);
+                    const responseHeadersObj = JSON.parse(req.ResponseHeaders);
+
+                    detailContent.innerHTML = `
+                        <div class="section">
+                            <h3><i class="fas fa-fingerprint"></i> ID: ${req.ID}</h3>
+                            <p><strong>${i18n.t('timestamp')}:</strong> ${new Date(req.Timestamp).toLocaleString()}</p>
+                            <p><strong>${i18n.t('method')}:</strong> ${req.Method}</p>
+                            <p><strong>${i18n.t('url')}:</strong> ${req.URL}</p>
+                            <p><strong>${i18n.t('status')}:</strong> ${req.StatusCode}</p>
+                        </div>
+                        <div class="section">
+                            <h3><i class="fas fa-paper-plane"></i> ${i18n.t('request_headers')}</h3>
+                            ${createHeadersTable(requestHeadersObj)}
+                        </div>
+                        <div class="section">
+                            <h3><i class="fas fa-file-alt"></i> ${i18n.t('request_body')}</h3>
+                            <pre>${req.RequestBody ? (function() { try { return decodeURIComponent(escape(atob(atob(req.RequestBody)))); } catch (e) { console.error('Error decoding request body:', e); return '[Decoding Error]'; } })() : req.RequestBody}</pre>
+                        </div>
+                        <div class="section">
+                            <h3><i class="fas fa-file-download"></i> ${i18n.t('response_headers')}</h3>
+                            ${createHeadersTable(responseHeadersObj)}
+                        </div>
+                        <div class="section">
+                            <h3><i class="fas fa-reply-all"></i> ${i18n.t('response_body')}</h3>
+                            <div>${renderResponseBody(req.ResponseHeaders, req.ResponseBody)}</div>
+                        </div>
+                    `;
+                    requestDetailModal.style.display = 'block';
+                } catch (error) {
+                    console.error('Error fetching request details:', error);
+                    alert(i18n.t('error_fetching_request_details'));
+                }
+            }
+
+            // Get the new close button for the detail modal
+            const closeDetailModalButton = document.getElementById('closeDetailModalButton');
+            
+            // Add event listener for the detail modal close button
+            if (closeDetailModalButton) {
+                closeDetailModalButton.addEventListener('click', () => {
+                    requestDetailModal.style.display = 'none';
+                    // Clear replay response when closing modals
+                    replayResponseHeadersDiv.innerHTML = i18n.t('headers_will_appear_here');
+                    replayResponseBodyDiv.textContent = i18n.t('body_will_appear_here');
+                    replayResponseMetaDiv.textContent = 'Status: - | Time: -';
+                });
+            }
+
+            // Close modals with close-button class (top right X buttons)
+            closeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    requestDetailModal.style.display = 'none';
+                    replayModal.style.display = 'none';
+                    // Clear replay response when closing modals
+                    replayResponseHeadersDiv.innerHTML = i18n.t('headers_will_appear_here');
+                    replayResponseBodyDiv.textContent = i18n.t('body_will_appear_here');
+                    replayResponseMetaDiv.textContent = 'Status: - | Time: -';
+                });
+            });
+            
+            // Specific close button for replay modal (using the correct class)
+            document.querySelectorAll('.button-close').forEach(button => {
+                button.addEventListener('click', () => {
+                    replayModal.style.display = 'none';
+                    // Clear replay response when closing modals
+                    replayResponseHeadersDiv.innerHTML = i18n.t('headers_will_appear_here');
+                    replayResponseBodyDiv.textContent = i18n.t('body_will_appear_here');
+                    replayResponseMetaDiv.textContent = 'Status: - | Time: -';
+                });
+            });
+            
+            // Get the new close button for the replay modal
+            const closeReplayModalButton = document.getElementById('closeReplayModalButton');
+            
+            // Add event listener for the new close button
+            if (closeReplayModalButton) {
+                closeReplayModalButton.addEventListener('click', () => {
+                    replayModal.style.display = 'none';
+                    // Clear replay response when closing modals
+                    replayResponseHeadersDiv.innerHTML = i18n.t('headers_will_appear_here');
+                    replayResponseBodyDiv.textContent = i18n.t('body_will_appear_here');
+                    replayResponseMetaDiv.textContent = 'Status: - | Time: -';
+                });
+            }
+
+            window.addEventListener('click', (event) => {
+                if (event.target == requestDetailModal) {
+                    requestDetailModal.style.display = 'none';
+                }
+                if (event.target == replayModal) {
+                    replayModal.style.display = 'none';
+                    // Clear replay response when closing modals
+                    replayResponseHeadersDiv.innerHTML = i18n.t('headers_will_appear_here');
+                    replayResponseBodyDiv.textContent = i18n.t('body_will_appear_here');
+                    replayResponseMetaDiv.textContent = 'Status: - | Time: -';
+                }
+            });
+
+            // Replay button click
+            replayButton.addEventListener('click', () => {
+                if (currentRequestData) {
+                    document.getElementById('replayMethod').value = currentRequestData.Method;
+                    document.getElementById('replayURL').value = currentRequestData.URL;
+                    document.getElementById('replayHeaders').value = JSON.stringify(JSON.parse(currentRequestData.RequestHeaders), null, 2);
+                    document.getElementById('replayBody').value = currentRequestData.RequestBody ? (function() { try { return decodeURIComponent(escape(atob(atob(currentRequestData.RequestBody)))); } catch (e) { console.error('Error decoding replay request body:', e); return '[Decoding Error]'; } })() : currentRequestData.RequestBody;
+                    requestDetailModal.style.display = 'none'; // Hide detail modal
+                    replayModal.style.display = 'block'; // Show replay modal
+                }
+            });
+
+            // Replay form submission
+            replayForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+
+                const method = document.getElementById('replayMethod').value;
+                const url = document.getElementById('replayURL').value;
+                let headers = {};
+                try {
+                    headers = JSON.parse(document.getElementById('replayHeaders').value);
+                } catch (e) {
+                    alert(i18n.t('invalid_headers_json'));
+                    return;
+                }
+                const body = document.getElementById('replayBody').value;
+
+                // Clear previous response
+                replayResponseHeadersDiv.innerHTML = i18n.t('loading');
+                replayResponseBodyDiv.textContent = i18n.t('loading');
+                replayResponseMetaDiv.textContent = 'Status: - | Time: -';
+
+                const startTime = performance.now();
+                try {
+                    const response = await fetch('/api/replay', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            method: method,
+                            url: url,
+                            headers: headers,
+                            body: body
+                        })
+                    });
+
+                    const endTime = performance.now();
+                    const duration = (endTime - startTime).toFixed(2);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    // Update response meta information
+                    replayResponseMetaDiv.textContent = `Status: ${result.statusCode} | Time: ${duration}ms`;
+
+                    // Format and display headers using the new table function
+                    if (result.headers) {
+                        replayResponseHeadersDiv.innerHTML = createHeadersTable(result.headers);
+                    } else {
+                        replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('no_headers')}</p>`;
+                    }
+
+                    // Format and display body
+                    if (typeof result.body === 'string') {
+                        try {
+                            // Try to parse body as JSON for formatting
+                            const parsedBody = JSON.parse(result.body);
+                            replayResponseBodyDiv.textContent = JSON.stringify(parsedBody, null, 2);
+                        } catch (e) {
+                            // If not JSON, display as plain text
+                            replayResponseBodyDiv.textContent = result.body;
+                        }
+                    } else {
+                        replayResponseBodyDiv.textContent = JSON.stringify(result.body, null, 2);
+                    }
+                } catch (error) {
+                    console.error('Error replaying request:', error);
+                    const endTime = performance.now();
+                    const duration = (endTime - startTime).toFixed(2);
+                    replayResponseMetaDiv.textContent = `Status: Error | Time: ${duration}ms`;
+                    replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('error_fetching_requests')}</p>`;
+                    replayResponseBodyDiv.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            // Logout button click
+            logoutButton.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/logout', { method: 'POST' });
+                    if (response.ok) {
+                        window.location.href = '/login';
+                    } else {
+                        alert(i18n.t('logout_failed'));
+                    }
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    alert(i18n.t('error_during_logout'));
+                }
+            });
+
+            // Initial fetch
+            initializeDateInputs();
+            fetchRequests(currentPage, pageSize, currentFilters);
+        });
+    </script>
+</body>
+</html>

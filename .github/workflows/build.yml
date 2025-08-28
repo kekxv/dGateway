@@ -1,0 +1,99 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Run tests
+      run: go test -v ./...
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetch all history for all tags and branches
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Get version
+      id: get_version
+      run: |
+        echo "VERSION=$(cat version)" >> $GITHUB_ENV
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+          echo "TAG_EXISTS=true" >> $GITHUB_ENV
+        else
+          echo "TAG_EXISTS=false" >> $GITHUB_ENV
+        fi
+
+    - name: Create tag
+      if: env.TAG_EXISTS == 'false'
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git tag -a "v${{ env.VERSION }}" -m "Release version ${{ env.VERSION }}"
+        git push origin "v${{ env.VERSION }}"
+
+    - name: Build binaries
+      if: env.TAG_EXISTS == 'false'
+      run: |
+        mkdir -p release
+        # Build for different platforms
+        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-windows-amd64.exe" .
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-linux-amd64" .
+        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-amd64" .
+        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-arm64" .
+
+    - name: Create Release
+      if: env.TAG_EXISTS == 'false'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ env.VERSION }}
+        release_name: Release v${{ env.VERSION }}
+        body_path: ./README.md
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Assets
+      if: env.TAG_EXISTS == 'false'
+      run: |
+        for file in release/*; do
+          if [ -f "$file" ]; then
+            echo "Uploading $file..."
+            gh release upload "v${{ env.VERSION }}" "$file" --clobber
+          fi
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
