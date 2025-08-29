@@ -59,15 +59,12 @@ jobs:
         else
           echo "TAG_EXISTS=false" >> $GITHUB_ENV
         fi
-
-    - name: Create tag
+        
+    # 在你的构建步骤之前
+    - name: Install MinGW-w64
       if: env.TAG_EXISTS == 'false'
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git tag -a "v${{ env.VERSION }}" -m "Release version ${{ env.VERSION }}"
-        git push origin "v${{ env.VERSION }}"
-
+      run: sudo apt-get update && sudo apt-get install -y mingw-w64
+  
     - name: Build binaries
       if: env.TAG_EXISTS == 'false'
       run: |
@@ -78,6 +75,14 @@ jobs:
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o "release/dGateway-${{ env.VERSION }}-darwin-amd64" .
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o "release/dGateway-${{ env.VERSION }}-darwin-arm64" .
 
+    - name: Create tag
+      if: env.TAG_EXISTS == 'false'
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git tag -a "v${{ env.VERSION }}" -m "Release version ${{ env.VERSION }}"
+        git push origin "v${{ env.VERSION }}"
+        
     - name: Create Release
       if: env.TAG_EXISTS == 'false'
       uses: actions/create-release@v1
