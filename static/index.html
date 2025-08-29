@@ -1489,11 +1489,11 @@
 
                     detailContent.innerHTML = `
                         <div class="section">
-                            <h3><i class="fas fa-fingerprint"></i> ID: ${req.ID}</h3>
-                            <p><strong>${i18n.t('timestamp')}:</strong> ${new Date(req.Timestamp).toLocaleString()}</p>
-                            <p><strong>${i18n.t('method')}:</strong> ${req.Method}</p>
-                            <p><strong>${i18n.t('url')}:</strong> ${req.URL}</p>
-                            <p><strong>${i18n.t('status')}:</strong> ${req.StatusCode}</p>
+                            <h3><i class="fas fa-fingerprint"></i> ID: ${req.id}</h3>
+                            <p><strong>${i18n.t('timestamp')}:</strong> ${new Date(req.timestamp).toLocaleString()}</p>
+                            <p><strong>${i18n.t('method')}:</strong> ${req.method}</p>
+                            <p><strong>${i18n.t('url')}:</strong> ${req.url}</p>
+                            <p><strong>${i18n.t('status')}:</strong> ${req.status_code}</p>
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-paper-plane"></i> ${i18n.t('request_headers')}</h3>
@@ -1605,8 +1605,8 @@
             // Replay button click
             replayButton.addEventListener('click', async () => { // Made async
                 if (currentRequestData) {
-                    document.getElementById('replayMethod').value = currentRequestData.Method;
-                    document.getElementById('replayURL').value = currentRequestData.URL;
+                    document.getElementById('replayMethod').value = currentRequestData.method;
+                    document.getElementById('replayURL').value = currentRequestData.url;
                     let parsedRequestHeaders = {};
                     try {
                         parsedRequestHeaders = JSON.parse(currentRequestData.request_headers);
