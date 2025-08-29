@@ -1314,6 +1314,146 @@
                 }
             }
 
+            function createHeadersTable(headersObj) {
+                if (!headersObj || typeof headersObj !== 'object') {
+                    return `<p>${i18n.t('no_headers_available')}</p>`;
+                }
+                
+                let tableHTML = '<table class="headers-table"><thead><tr><th>Key</th><th>Value(s)</th></tr></thead><tbody>';
+                
+                for (const [key, values] of Object.entries(headersObj)) {
+                    // Ensure values is an array
+                    const valuesArray = Array.isArray(values) ? values : [values];
+                    
+                    // Create tags for each value
+                    const tagsHTML = valuesArray.map(value => 
+                        `<span class="header-tag">${value}</span>`
+                    ).join('');
+                    
+                    tableHTML += `<tr><td><strong>${key}</strong></td><td>${tagsHTML}</td></tr>`;
+                }
+                
+                tableHTML += '</tbody></table>';
+                return tableHTML;
+            }
+
+            function getFilenameFromHeaders(headersObj) {
+                const contentDispositionHeader = Object.keys(headersObj).find(k => k.toLowerCase() === 'content-disposition');
+                if (contentDispositionHeader && headersObj[contentDispositionHeader]) {
+                    const headerValue = Array.isArray(headersObj[contentDispositionHeader]) ? headersObj[contentDispositionHeader][0] : headersObj[contentDispositionHeader];
+                    if (headerValue) {
+                        const match = /filename="([^\"]+)"/.exec(headerValue);
+                        if (match && match[1]) {
+                            return match[1];
+                        }
+                        const utf8Match = /filename\*=UTF-8''([^\;]+)/.exec(headerValue);
+                        if (utf8Match && utf8Match[1]) {
+                            try {
+                                return decodeURIComponent(utf8Match[1]);
+                            } catch (e) { /* fallback */ }
+                        }
+                    }
+                }
+                return '';
+            }
+
+            function getExtensionFromContentType(contentType) {
+                if (!contentType) return 'bin';
+                const mimeMap = {
+                    'image/jpeg': 'jpg',
+                    'image/png': 'png',
+                    'image/gif': 'gif',
+                    'image/webp': 'webp',
+                    'image/svg+xml': 'svg',
+                    'video/mp4': 'mp4',
+                    'video/webm': 'webm',
+                    'application/pdf': 'pdf',
+                    'application/json': 'json',
+                    'text/plain': 'txt',
+                    'text/html': 'html',
+                    'text/css': 'css',
+                    'application/javascript': 'js',
+                    'application/xml': 'xml'
+                };
+                return mimeMap[contentType.split(';')[0]] || 'bin';
+            }
+
+            // Function to fetch and display body content
+            async function fetchAndDisplayBody(id, type) {
+                const containerId = type === 'request' ? 'requestBodyContainer' : 'responseBodyContainer';
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                container.innerHTML = ''; // Clear
+
+                const req = currentRequestData;
+                if (!req || req.id !== id) {
+                    console.error("Request data mismatch for fetchAndDisplayBody");
+                    return;
+                }
+
+                const headersStr = (type === 'request') ? req.request_headers : req.response_headers;
+                const size = (type === 'request') ? req.request_body_size : req.response_body_size;
+                const isText = (type === 'request') ? req.is_request_body_text : req.is_response_body_text;
+                const bodyUrl = `/api/requests/body/${type}/${req.id}`;
+
+                let headersObj = {};
+                try { headersObj = JSON.parse(headersStr); } catch (e) {}
+
+                const contentTypeHeader = Object.keys(headersObj).find(k => k.toLowerCase() === 'content-type');
+                const contentType = contentTypeHeader && headersObj[contentTypeHeader] ? (Array.isArray(headersObj[contentTypeHeader]) ? headersObj[contentTypeHeader][0] : headersObj[contentTypeHeader]) : '';
+
+                // Use direct URL for embeddable media types
+                if (size > 0) {
+                    if (contentType.startsWith('image/')) {
+                        container.innerHTML = `<img src="${bodyUrl}" style="max-width: 100%; height: auto;" alt="Image content" />`;
+                        return;
+                    }
+                    if (contentType.startsWith('video/')) {
+                        container.innerHTML = `<video src="${bodyUrl}" controls style="max-width: 100%; height: auto;"></video>`;
+                        return;
+                    }
+                    if (contentType === 'application/pdf') {
+                        container.innerHTML = `<embed src="${bodyUrl}" type="application/pdf" style="width: 100%; height: 60vh;" />`;
+                        return;
+                    }
+                }
+
+                // Fallback to fetching for text content
+                const loading = document.createElement('p');
+                loading.textContent = i18n.t('loading_body');
+                container.appendChild(loading);
+
+                try {
+                    const response = await fetch(bodyUrl);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    const fetchedContentType = response.headers.get('Content-Type') || '';
+                    const bodyContent = await response.text();
+
+                    container.innerHTML = '';
+                    const pre = document.createElement('pre');
+                    if (fetchedContentType.includes('application/json')) {
+                        try {
+                            const jsonObj = JSON.parse(bodyContent);
+                            pre.textContent = JSON.stringify(jsonObj, null, 2);
+                            pre.classList.add('formatted-json');
+                        } catch (e) {
+                            pre.textContent = bodyContent;
+                            pre.classList.add('formatted-text');
+                        }
+                    } else if (isText) {
+                        pre.textContent = bodyContent;
+                        pre.classList.add('formatted-text');
+                    } else {
+                         pre.textContent = `[${i18n.t('binary_or_unsupported_content')}] (${fetchedContentType})`;
+                    }
+                    container.appendChild(pre);
+                } catch (error) {
+                    console.error(`Error fetching ${type} body:`, error);
+                    container.textContent = `${i18n.t('error_fetching_body')}: ${error.message}`;
+                }
+            }
+
             async function showRequestDetails(id) {
                 try {
                     const response = await fetch(`/api/requests/${id}`);
@@ -1334,22 +1474,47 @@
                     let responseHeadersObj = {};
                     try { responseHeadersObj = JSON.parse(req.response_headers); } catch (e) { console.error('Error parsing response headers JSON:', e); responseHeadersObj = { 'Error': ['Invalid JSON format'] }; }
 
-                    // Get content types from parsed headers
+                    // --- Request Body Logic (retained from previous state) ---
                     const reqContentTypeHeader = Object.keys(requestHeadersObj).find(k => k.toLowerCase() === 'content-type');
                     const reqContentType = reqContentTypeHeader && requestHeadersObj[reqContentTypeHeader] ? (Array.isArray(requestHeadersObj[reqContentTypeHeader]) ? requestHeadersObj[reqContentTypeHeader][0] : requestHeadersObj[reqContentTypeHeader]) : '';
+                    const isRequestEmbeddable = req.request_body_size > 0 && (reqContentType.startsWith('image/') || reqContentType.startsWith('video/') || reqContentType === 'application/pdf');
+                    const autoFetchRequestText = req.request_body_size > 0 && req.request_body_size < 1048576 && req.is_request_body_text && !isRequestEmbeddable;
+                    const showRequestButton = req.request_body_size > 0 && !isRequestEmbeddable && !autoFetchRequestText;
 
+                    // --- New Response Body Logic ---
                     const resContentTypeHeader = Object.keys(responseHeadersObj).find(k => k.toLowerCase() === 'content-type');
                     const resContentType = resContentTypeHeader && responseHeadersObj[resContentTypeHeader] ? (Array.isArray(responseHeadersObj[resContentTypeHeader]) ? responseHeadersObj[resContentTypeHeader][0] : responseHeadersObj[resContentTypeHeader]) : '';
+                    
+                    const resSize = req.response_body_size;
+                    const resIsText = req.is_response_body_text;
 
-                    // Determine how to display bodies
-                    const isRequestEmbeddable = req.request_body_size > 0 && (reqContentType.startsWith('image/') || reqContentType.startsWith('video/') || reqContentType === 'application/pdf');
-                    const isResponseEmbeddable = req.response_body_size > 0 && (resContentType.startsWith('image/') || resContentType.startsWith('video/') || resContentType === 'application/pdf');
+                    const isResponseEmbeddable = resSize > 0 && (resContentType.startsWith('image/') || resContentType.startsWith('video/') || resContentType === 'application/pdf');
+                    const isResponseTooLarge = resSize > (5 * 1024 * 1024);
+                    const isResponseGenericBinary = resSize > 0 && !resIsText && !isResponseEmbeddable;
 
-                    const autoFetchRequestText = req.request_body_size > 0 && req.request_body_size < 1048576 && req.is_request_body_text && !isRequestEmbeddable;
-                    const autoFetchResponseText = req.response_body_size > 0 && req.response_body_size < 1048576 && req.is_response_body_text && !isResponseEmbeddable;
+                    const showDownloadButton = isResponseTooLarge || isResponseGenericBinary;
+                    const autoDisplayEmbeddable = isResponseEmbeddable && !showDownloadButton;
+                    const autoDisplayText = resIsText && resSize > 0 && resSize < 1048576 && !showDownloadButton;
+                    const showViewButton = resSize > 0 && !showDownloadButton && !autoDisplayEmbeddable && !autoDisplayText;
 
-                    const showRequestButton = req.request_body_size > 0 && !isRequestEmbeddable && !autoFetchRequestText;
-                    const showResponseButton = req.response_body_size > 0 && !isResponseEmbeddable && !autoFetchResponseText;
+                    let responseBodyControls = '';
+                    if (showDownloadButton) {
+                        let filename = getFilenameFromHeaders(responseHeadersObj);
+                        if (!filename) {
+                            try {
+                                const urlPath = new URL(req.url).pathname;
+                                const baseName = urlPath.substring(urlPath.lastIndexOf('/') + 1).split('.')[0] || `response-${req.id}`;
+                                const extension = getExtensionFromContentType(resContentType);
+                                filename = `${baseName}.${extension}`;
+                            } catch (e) {
+                                const extension = getExtensionFromContentType(resContentType);
+                                filename = `response-${req.id}.${extension}`;
+                            }
+                        }
+                        responseBodyControls = `<a href="/api/requests/body/response/${req.id}" class="btn btn-primary btn-sm" download="${filename}"><i class="fas fa-download"></i> Download Body</a>`;
+                    } else if (showViewButton) {
+                        responseBodyControls = `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response"><i class="fas fa-eye"></i> View Body</button>`;
+                    }
 
                     detailContent.innerHTML = `
                         <div class="section">
@@ -1379,21 +1544,29 @@
                         <div class="section">
                             <h3><i class="fas fa-reply-all"></i> ${i18n.t('response_body')}</h3>
                             <p>
-                                <strong>${i18n.t('size')}:</strong> ${req.response_body_size} bytes 
-                                (${req.is_response_body_text ? i18n.t('text') : i18n.t('binary')})
-                                ${showResponseButton ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response">${i18n.t('view_body')}</button>` : ''}
+                                <strong>${i18n.t('size')}:</strong> ${resSize} bytes 
+                                (${resIsText ? i18n.t('text') : i18n.t('binary')})
+                                ${responseBodyControls}
                             </p>
                             <div id="responseBodyContainer"></div>
                         </div>
                     `;
                     requestDetailModal.style.display = 'block';
 
-                    // Auto-display content if conditions are met
+                    // Auto-display request body
                     if (isRequestEmbeddable || autoFetchRequestText) {
                         fetchAndDisplayBody(req.id, 'request');
+                    } else {
+                        const requestBodyContainer = document.getElementById('requestBodyContainer');
+                        if(requestBodyContainer) requestBodyContainer.innerHTML = '';
                     }
-                    if (isResponseEmbeddable || autoFetchResponseText) {
+
+                    // Auto-display response body
+                    if (autoDisplayEmbeddable || autoDisplayText) {
                         fetchAndDisplayBody(req.id, 'response');
+                    } else {
+                        const responseBodyContainer = document.getElementById('responseBodyContainer');
+                        if(responseBodyContainer) responseBodyContainer.innerHTML = '';
                     }
                 } catch (error) {
                     console.error('Error fetching request details:', error);
@@ -1526,12 +1699,12 @@
                 }
                 const body = document.getElementById('replayBody').value;
 
-                // Get the container
-                const replayResponseBodyDiv = document.getElementById('replayResponseBody');
+                const replayResponseBodyContainer = document.getElementById('replayResponseBody');
+                const replayResponseHeadersDiv = document.getElementById('replayResponseHeaders');
+                const replayResponseMetaDiv = document.getElementById('replayResponseMeta');
 
-                // Clear previous response
                 replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('loading')}</p>`;
-                replayResponseBodyDiv.innerHTML = `<p>${i18n.t('loading')}</p>`;
+                replayResponseBodyContainer.innerHTML = `<p>${i18n.t('loading')}</p>`;
                 replayResponseMetaDiv.textContent = 'Status: - | Time: -';
 
                 const startTime = performance.now();
@@ -1553,70 +1726,97 @@
                     
                     replayResponseMetaDiv.textContent = `Status: ${result.statusCode} | Time: ${duration}ms`;
 
-                    if (result.headers) {
-                        replayResponseHeadersDiv.innerHTML = createHeadersTable(result.headers);
-                    } else {
-                        replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('no_headers')}</p>`;
-                    }
+                    const responseHeaders = result.headers || {};
+                    replayResponseHeadersDiv.innerHTML = createHeadersTable(responseHeaders);
+                    
+                    replayResponseBodyContainer.innerHTML = '';
 
-                    // New body handling logic
-                    replayResponseBodyDiv.innerHTML = ''; // Clear loading message
+                    const responseBody = result.body || '';
+                    const contentTypeHeader = Object.keys(responseHeaders).find(k => k.toLowerCase() === 'content-type');
+                    const contentType = contentTypeHeader ? (Array.isArray(responseHeaders[contentTypeHeader]) ? responseHeaders[contentTypeHeader][0] : responseHeaders[contentTypeHeader]) : '';
 
-                    const replayContentTypeHeader = Object.keys(result.headers).find(k => k.toLowerCase() === 'content-type');
-                    const replayContentType = replayContentTypeHeader ? (Array.isArray(result.headers[replayContentTypeHeader]) ? result.headers[replayContentTypeHeader][0] : result.headers[replayContentTypeHeader]) : '';
-
-                    if (result.body && (replayContentType.startsWith('image/') || replayContentType.startsWith('video/'))) {
+                    const isText = contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml');
+                    
+                    let rawBody;
+                    if (!isText && responseBody) {
                         try {
-                            const binaryString = atob(result.body);
-                            const len = binaryString.length;
-                            const bytes = new Uint8Array(len);
-                            for (let i = 0; i < len; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
-                            const blob = new Blob([bytes], { type: replayContentType });
-                            const objectURL = URL.createObjectURL(blob);
-
-                            if (replayContentType.startsWith('image/')) {
-                                const img = document.createElement('img');
-                                img.src = objectURL;
-                                img.style.maxWidth = '100%';
-                                img.style.height = 'auto';
-                                img.onload = () => URL.revokeObjectURL(objectURL);
-                                replayResponseBodyDiv.appendChild(img);
-                            } else if (replayContentType.startsWith('video/')) {
-                                const video = document.createElement('video');
-                                video.src = objectURL;
-                                video.controls = true;
-                                video.style.maxWidth = '100%';
-                                video.style.height = 'auto';
-                                video.oncanplay = () => URL.revokeObjectURL(objectURL);
-                                replayResponseBodyDiv.appendChild(video);
-                            }
+                            rawBody = atob(responseBody);
                         } catch (e) {
-                            console.error('Error processing base64 body for replay:', e);
-                            replayResponseBodyDiv.textContent = '[Error rendering media content]';
+                            console.error("Failed to decode base64 body, treating as text.", e);
+                            rawBody = responseBody; // Fallback
                         }
                     } else {
-                        // Fallback to text display
-                        const pre = document.createElement('pre');
-                        let bodyText = '';
-                        if (typeof result.body === 'string') {
-                            bodyText = result.body;
-                        } else if (result.body) {
-                            bodyText = JSON.stringify(result.body, null, 2);
-                        } else {
-                            bodyText = ''; // Empty body is just empty
+                        rawBody = responseBody;
+                    }
+                    const size = rawBody.length;
+
+                    const isEmbeddable = contentType.startsWith('image/') || contentType.startsWith('video/') || contentType === 'application/pdf';
+                    const isTooLarge = size > (5 * 1024 * 1024);
+                    const isGenericBinary = size > 0 && !isText && !isEmbeddable;
+                    const showDownloadButton = isTooLarge || isGenericBinary;
+
+                    if (showDownloadButton) {
+                        const bytes = new Uint8Array(size);
+                        for (let i = 0; i < size; i++) {
+                            bytes[i] = rawBody.charCodeAt(i);
+                        }
+                        const blob = new Blob([bytes], { type: contentType });
+                        const objectURL = URL.createObjectURL(blob);
+
+                        let filename = getFilenameFromHeaders(responseHeaders);
+                        if (!filename) {
+                            const extension = getExtensionFromContentType(contentType);
+                            filename = `replay-response.${extension}`;
                         }
 
+                        const a = document.createElement('a');
+                        a.href = objectURL;
+                        a.download = filename;
+                        a.className = 'btn btn-primary';
+                        a.innerHTML = `<i class="fas fa-download"></i> Download Body (${(size / 1024 / 1024).toFixed(2)} MB)`;
+                        replayResponseBodyContainer.appendChild(a);
+                    } else if (isEmbeddable && responseBody) {
+                        const bytes = new Uint8Array(size);
+                        for (let i = 0; i < size; i++) {
+                            bytes[i] = rawBody.charCodeAt(i);
+                        }
+                        const blob = new Blob([bytes], { type: contentType });
+                        const objectURL = URL.createObjectURL(blob);
+
+                        if (contentType.startsWith('image/')) {
+                            const img = document.createElement('img');
+                            img.src = objectURL;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            img.onload = () => URL.revokeObjectURL(objectURL);
+                            replayResponseBodyContainer.appendChild(img);
+                        } else if (contentType.startsWith('video/')) {
+                            const video = document.createElement('video');
+                            video.src = objectURL;
+                            video.controls = true;
+                            video.style.maxWidth = '100%';
+                            video.style.height = 'auto';
+                            video.oncanplay = () => URL.revokeObjectURL(objectURL);
+                            replayResponseBodyContainer.appendChild(video);
+                        } else if (contentType === 'application/pdf') {
+                            const embed = document.createElement('embed');
+                            embed.src = objectURL;
+                            embed.type = 'application/pdf';
+                            embed.style.width = '100%';
+                            embed.style.height = '60vh';
+                            replayResponseBodyContainer.appendChild(embed);
+                        }
+                    } else {
+                        const pre = document.createElement('pre');
                         try {
-                            const parsedJson = JSON.parse(bodyText);
+                            const parsedJson = JSON.parse(rawBody);
                             pre.textContent = JSON.stringify(parsedJson, null, 2);
                             pre.classList.add('formatted-json');
                         } catch (e) {
-                            pre.textContent = bodyText;
-                            if (bodyText) pre.classList.add('formatted-text');
+                            pre.textContent = rawBody;
+                            if (rawBody) pre.classList.add('formatted-text');
                         }
-                        replayResponseBodyDiv.appendChild(pre);
+                        replayResponseBodyContainer.appendChild(pre);
                     }
                 } catch (error) {
                     console.error('Error replaying request:', error);
@@ -1624,7 +1824,7 @@
                     const duration = (endTime - startTime).toFixed(2);
                     replayResponseMetaDiv.textContent = `Status: Error | Time: ${duration}ms`;
                     replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('error_during_replay')}</p>`;
-                    replayResponseBodyDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+                    replayResponseBodyContainer.innerHTML = `<p>Error: ${error.message}</p>`;
                 }
             });
 
