@@ -44,5 +44,14 @@
   "username": "用户名",
   "password": "密码",
   "enter_username": "请输入用户名",
-  "enter_password": "请输入密码"
+  "enter_password": "请输入密码",
+  "start_recording": "开始记录",
+  "stop_recording": "停止记录",
+  "recording_status_recording": "记录中",
+  "recording_status_stopped": "已停止",
+  "recording_status_unknown": "状态未知",
+  "recording_started_success": "记录已开始！",
+  "recording_started_error": "启动记录失败。",
+  "recording_stopped_success": "记录已停止！",
+  "recording_stopped_error": "停止记录失败。"
 }

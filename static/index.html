@@ -640,13 +640,74 @@
                 margin: 10% auto;
             }
         }
+
+        /* Notification styles */
+        #notificationContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .notification-message {
+            background-color: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transform: translateY(-20px);
+            animation: slideInNotification 0.3s forwards, fadeOutNotification 0.5s forwards 2.5s;
+            min-width: 250px;
+            max-width: 350px;
+            word-wrap: break-word;
+        }
+
+        .notification-message.success {
+            background-color: var(--accent-color);
+        }
+
+        .notification-message.error {
+            background-color: var(--danger-color);
+        }
+
+        .notification-message.info {
+            background-color: var(--secondary-color);
+        }
+
+        @keyframes slideInNotification {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOutNotification {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
+    <div id="notificationContainer"></div>
     <div class="container">
         <header>
             <h1><i class="fas fa-shield-alt"></i> <span data-i18n="title">dGateway 管理面板</span></h1>
             <div class="header-controls">
+                <span id="recordingStatus" style="margin-right: 1rem; font-weight: bold;">Recording: Stopped</span>
+                <button class="btn btn-success" id="startRecordingButton"><i class="fas fa-play-circle"></i> <span data-i18n="start_recording">开始记录</span></button>
+                <button class="btn btn-danger" id="stopRecordingButton" disabled><i class="fas fa-stop-circle"></i> <span data-i18n="stop_recording">停止记录</span></button>
                 <select id="languageSelector" class="language-selector">
                     <option value="zh-CN" selected>中文</option>
                     <option value="en-US">English</option>
@@ -792,6 +853,27 @@
     </div>
 
     <script>
+        // Non-blocking notification system
+        function showNotification(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('notificationContainer');
+            if (!container) {
+                console.error('Notification container not found');
+                return;
+            }
+
+            const notification = document.createElement('div');
+            notification.classList.add('notification-message');
+            notification.classList.add(type); // 'success', 'error', 'info'
+            notification.textContent = message;
+
+            container.appendChild(notification);
+
+            // Remove after duration
+            setTimeout(() => {
+                notification.remove();
+            }, duration);
+        }
+
         // I18n module
         const i18n = (function() {
             let currentLang = 'zh-CN'; // Default language
@@ -903,6 +985,11 @@
             const totalPagesSpan = document.getElementById('totalPages');
             const totalCountSpan = document.getElementById('totalCount');
 
+            // New recording control elements
+            const recordingStatusSpan = document.getElementById('recordingStatus');
+            const startRecordingButton = document.getElementById('startRecordingButton');
+            const stopRecordingButton = document.getElementById('stopRecordingButton');
+
             let currentRequestData = null; // To store data of the request being viewed/replayed
             let currentPage = 1;
             let pageSize = 25;
@@ -913,6 +1000,61 @@
             };
             let totalPages = 0;
             let totalCount = 0;
+
+            // Function to update recording status UI
+            async function updateRecordingStatusUI() {
+                try {
+                    const response = await fetch('/api/recording-status');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.status === 'recording') {
+                        recordingStatusSpan.textContent = i18n.t('recording_status_recording');
+                        recordingStatusSpan.style.color = 'var(--accent-color)'; // Green
+                        startRecordingButton.disabled = true;
+                        stopRecordingButton.disabled = false;
+                    } else {
+                        recordingStatusSpan.textContent = i18n.t('recording_status_stopped');
+                        recordingStatusSpan.style.color = 'var(--danger-color)'; // Red
+                        startRecordingButton.disabled = false;
+                        stopRecordingButton.disabled = true;
+                    }
+                } catch (error) {
+                    console.error('Error fetching recording status:', error);
+                    recordingStatusSpan.textContent = i18n.t('recording_status_unknown');
+                    recordingStatusSpan.style.color = 'gray';
+                }
+            }
+
+            // Event listeners for recording buttons
+            startRecordingButton.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/api/start-recording', { method: 'POST' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    await updateRecordingStatusUI();
+                    showNotification(i18n.t('recording_started_success'), 'success');
+                } catch (error) {
+                    console.error('Error starting recording:', error);
+                    showNotification(i18n.t('recording_started_error'), 'error');
+                }
+            });
+
+            stopRecordingButton.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/api/stop-recording', { method: 'POST' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    await updateRecordingStatusUI();
+                    showNotification(i18n.t('recording_stopped_success'), 'success');
+                } catch (error) {
+                    console.error('Error stopping recording:', error);
+                    showNotification(i18n.t('recording_stopped_error'), 'error');
+                }
+            });
 
             // Initialize date inputs with today and 7 days ago
             function initializeDateInputs() {
@@ -986,7 +1128,7 @@
                     });
                 } catch (error) {
                     console.error('Error fetching requests:', error);
-                    alert(i18n.t('error_fetching_requests'));
+                    showNotification(i18n.t('error_fetching_requests'), 'error');
                 }
             }
 
@@ -1316,7 +1458,7 @@
                     requestDetailModal.style.display = 'block';
                 } catch (error) {
                     console.error('Error fetching request details:', error);
-                    alert(i18n.t('error_fetching_request_details'));
+                    showNotification(i18n.t('error_fetching_request_details'), 'error');
                 }
             }
 
@@ -1406,7 +1548,7 @@
                 try {
                     headers = JSON.parse(document.getElementById('replayHeaders').value);
                 } catch (e) {
-                    alert(i18n.t('invalid_headers_json'));
+                    showNotification(i18n.t('invalid_headers_json'), 'error');
                     return;
                 }
                 const body = document.getElementById('replayBody').value;
@@ -1480,16 +1622,17 @@
                     if (response.ok) {
                         window.location.href = '/login';
                     } else {
-                        alert(i18n.t('logout_failed'));
+                        showNotification(i18n.t('logout_failed'), 'error');
                     }
                 } catch (error) {
                     console.error('Logout error:', error);
-                    alert(i18n.t('error_during_logout'));
+                    showNotification(i18n.t('error_during_logout'), 'error');
                 }
             });
 
             // Initial fetch
             initializeDateInputs();
+            await updateRecordingStatusUI(); // Call this to set initial button states
             fetchRequests(currentPage, pageSize, currentFilters);
         });
     </script>

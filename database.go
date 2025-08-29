@@ -28,7 +28,7 @@ var db *sql.DB
 
 func InitDB(dataSourceName string) {
 	var err error
-	db, err = sql.Open("sqlite3", dataSourceName)
+	db, err = sql.Open("sqlite", dataSourceName)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -51,6 +51,13 @@ func InitDB(dataSourceName string) {
 	if err != nil {
 		log.Fatalf("Failed to create table: %v", err)
 	}
+
+	// Enable WAL mode for better concurrency
+	_, err = db.Exec("PRAGMA journal_mode=WAL;")
+	if err != nil {
+		log.Printf("Failed to enable WAL mode: %v", err)
+	}
+
 	log.Println("Database initialized successfully.")
 }
 

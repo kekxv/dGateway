@@ -33,6 +33,9 @@ import (
 //go:embed static
 var staticFiles embed.FS // Embed the static directory
 
+var IsRecording bool // Global variable to control recording state
+var requestLogChan chan RequestLog // Channel for logging requests asynchronously
+
 // ProxyHandler holds the reverse proxy and handles logging
 type ProxyHandler struct {
 	proxy *httputil.ReverseProxy
@@ -523,13 +526,51 @@ func generateCertificates() {
 	log.Println("IMPORTANT: Install certs/ca.crt into your system/browser trust store to avoid certificate errors.")
 }
 
+func startRecordingHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	IsRecording = true
+	log.Println("Recording started.")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Recording started"}`))
+}
+
+func stopRecordingHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	IsRecording = false
+	log.Println("Recording stopped.")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Recording stopped"}`))
+}
+
+func getRecordingStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	status := "stopped"
+	if IsRecording {
+		status = "recording"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(fmt.Sprintf(`{"status": "%s"}`, status)))
+}
+
 func main() {
 	port := flag.Int("port", 8080, "port to listen on for proxy")
 	target := flag.String("target", "http://127.0.0.1:8081", "target to forward requests to")
 	dbPath := flag.String("db", "requests.db", "path to SQLite database file")
 	genCerts := flag.Bool("gen-certs", false, "generate CA and server certificates")
 	enableHTTPS := flag.Bool("enable-https", false, "enable HTTPS support on the same port")
+	recordOnStart := flag.Bool("record-on-start", true, "start recording requests by default")
 	flag.Parse()
+
+	IsRecording = *recordOnStart
 
 	if *genCerts {
 		generateCertificates()
@@ -547,6 +588,16 @@ func main() {
 
 	// Initialize database
 	InitDB(*dbPath)
+
+	// Initialize the request log channel
+	requestLogChan = make(chan RequestLog, 100) // Buffer up to 100 requests
+
+	// Start a goroutine to process log entries from the channel
+	go func() {
+		for logEntry := range requestLogChan {
+			LogRequest(logEntry)
+		}
+	}()
 
 	// --- Proxy Server Setup ---
 	remote, err := url.Parse(*target)
@@ -602,8 +653,15 @@ func main() {
 		// Update response with the (possibly modified) body
 		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 		
-		// Log to database
-		LogRequest(*reqLog)
+		// Log to database if recording is enabled
+		if IsRecording {
+			select {
+			case requestLogChan <- *reqLog:
+				// Successfully sent to channel
+			default:
+				log.Println("Request log channel is full, dropping log entry.")
+			}
+		}
 		
 		return nil
 	}
@@ -734,6 +792,9 @@ func main() {
 	adminMux.HandleFunc("/api/requests", authMiddleware(getRequests))
 	adminMux.HandleFunc("/api/requests/", authMiddleware(getRequestDetail)) // Trailing slash for ID
 	adminMux.HandleFunc("/api/replay", authMiddleware(replayRequest))
+	adminMux.HandleFunc("/api/start-recording", authMiddleware(startRecordingHandler))
+	adminMux.HandleFunc("/api/stop-recording", authMiddleware(stopRecordingHandler))
+	adminMux.HandleFunc("/api/recording-status", authMiddleware(getRecordingStatusHandler))
 	adminMux.HandleFunc("/logout", logoutHandler)
 
 	// Root handler for admin interface
@@ -753,6 +814,16 @@ func main() {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(content)
 	})
+
+	// Print startup information
+	log.Printf("dGateway Proxy Server listening on: http://localhost:%d", *port)
+	log.Printf("Forwarding requests to: %s", *target)
+	log.Printf("dGateway Admin Panel available at: http://localhost:%d", adminPort)
+	if IsRecording {
+		log.Println("Recording mode: ON (requests will be logged)")
+	} else {
+		log.Println("Recording mode: OFF (requests will NOT be logged)")
+	}
 
 	log.Printf("Admin server listening on port %d", adminPort)
 	if err := http.ListenAndServe(":"+strconv.Itoa(adminPort), adminMux); err != nil {

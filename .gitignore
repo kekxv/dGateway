@@ -4,6 +4,8 @@ dgateway
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 
 # Certificates
 certs/*.crt
