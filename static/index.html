@@ -1240,45 +1240,77 @@
 
             // Function to fetch and display body content
             async function fetchAndDisplayBody(id, type) {
-                const url = `/api/requests/body/${type}/${id}`;
-                const contentElementId = type === 'request' ? 'requestBodyContent' : 'responseBodyContent';
-                const contentElement = document.getElementById(contentElementId);
+                const containerId = type === 'request' ? 'requestBodyContainer' : 'responseBodyContainer';
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                container.innerHTML = ''; // Clear
 
-                contentElement.textContent = i18n.t('loading_body'); // Show loading message
+                const req = currentRequestData;
+                if (!req || req.id !== id) {
+                    console.error("Request data mismatch for fetchAndDisplayBody");
+                    return;
+                }
+
+                const headersStr = (type === 'request') ? req.request_headers : req.response_headers;
+                const size = (type === 'request') ? req.request_body_size : req.response_body_size;
+                const isText = (type === 'request') ? req.is_request_body_text : req.is_response_body_text;
+                const bodyUrl = `/api/requests/body/${type}/${req.id}`;
+
+                let headersObj = {};
+                try { headersObj = JSON.parse(headersStr); } catch (e) {}
+
+                const contentTypeHeader = Object.keys(headersObj).find(k => k.toLowerCase() === 'content-type');
+                const contentType = contentTypeHeader && headersObj[contentTypeHeader] ? (Array.isArray(headersObj[contentTypeHeader]) ? headersObj[contentTypeHeader][0] : headersObj[contentTypeHeader]) : '';
+
+                // Use direct URL for embeddable media types
+                if (size > 0) {
+                    if (contentType.startsWith('image/')) {
+                        container.innerHTML = `<img src="${bodyUrl}" style="max-width: 100%; height: auto;" alt="Image content" />`;
+                        return;
+                    }
+                    if (contentType.startsWith('video/')) {
+                        container.innerHTML = `<video src="${bodyUrl}" controls style="max-width: 100%; height: auto;"></video>`;
+                        return;
+                    }
+                    if (contentType === 'application/pdf') {
+                        container.innerHTML = `<embed src="${bodyUrl}" type="application/pdf" style="width: 100%; height: 60vh;" />`;
+                        return;
+                    }
+                }
+
+                // Fallback to fetching for text content
+                const loading = document.createElement('p');
+                loading.textContent = i18n.t('loading_body');
+                container.appendChild(loading);
 
                 try {
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    const contentType = response.headers.get('Content-Type');
-                    const bodyContent = await response.text(); // Get as text for now
+                    const response = await fetch(bodyUrl);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    const fetchedContentType = response.headers.get('Content-Type') || '';
+                    const bodyContent = await response.text();
 
-                    // Attempt to parse as JSON if content type is JSON
-                    if (contentType && contentType.includes('application/json')) {
+                    container.innerHTML = '';
+                    const pre = document.createElement('pre');
+                    if (fetchedContentType.includes('application/json')) {
                         try {
                             const jsonObj = JSON.parse(bodyContent);
-                            contentElement.textContent = JSON.stringify(jsonObj, null, 2);
-                            contentElement.classList.add('formatted-json');
+                            pre.textContent = JSON.stringify(jsonObj, null, 2);
+                            pre.classList.add('formatted-json');
                         } catch (e) {
-                            // Not valid JSON, display as plain text
-                            contentElement.textContent = bodyContent;
-                            contentElement.classList.remove('formatted-json');
+                            pre.textContent = bodyContent;
+                            pre.classList.add('formatted-text');
                         }
-                    } else if (contentType && (contentType.includes('text/') || contentType.includes('application/xml') || contentType.includes('application/javascript'))) {
-                        // For other text types, display as plain text
-                        contentElement.textContent = bodyContent;
-                        contentElement.classList.remove('formatted-json'); // Ensure no old class
-                        contentElement.classList.add('formatted-text');
+                    } else if (isText) {
+                        pre.textContent = bodyContent;
+                        pre.classList.add('formatted-text');
                     } else {
-                        // For binary or unknown types, display a message
-                        contentElement.textContent = `[${i18n.t('binary_or_unsupported_content')}]`;
-                        contentElement.classList.remove('formatted-json', 'formatted-text');
+                         pre.textContent = `[${i18n.t('binary_or_unsupported_content')}] (${fetchedContentType})`;
                     }
+                    container.appendChild(pre);
                 } catch (error) {
                     console.error(`Error fetching ${type} body:`, error);
-                    contentElement.textContent = `${i18n.t('error_fetching_body')}: ${error.message}`;
-                    contentElement.classList.remove('formatted-json', 'formatted-text');
+                    container.textContent = `${i18n.t('error_fetching_body')}: ${error.message}`;
                 }
             }
 
@@ -1295,26 +1327,29 @@
                     const req = await response.json();
                     currentRequestData = req; // Store for replay
 
-                    // Parse headers for display with error handling
+                    // Parse headers for display and content type detection
                     let requestHeadersObj = {};
-                    try {
-                        requestHeadersObj = JSON.parse(req.request_headers);
-                    } catch (e) {
-                        console.error('Error parsing request headers JSON:', e);
-                        requestHeadersObj = { 'Error': ['Invalid JSON format'] };
-                    }
+                    try { requestHeadersObj = JSON.parse(req.request_headers); } catch (e) { console.error('Error parsing request headers JSON:', e); requestHeadersObj = { 'Error': ['Invalid JSON format'] }; }
 
                     let responseHeadersObj = {};
-                    try {
-                        responseHeadersObj = JSON.parse(req.response_headers);
-                    } catch (e) {
-                        console.error('Error parsing response headers JSON:', e);
-                        responseHeadersObj = { 'Error': ['Invalid JSON format'] };
-                    }
+                    try { responseHeadersObj = JSON.parse(req.response_headers); } catch (e) { console.error('Error parsing response headers JSON:', e); responseHeadersObj = { 'Error': ['Invalid JSON format'] }; }
 
-                    // Determine if bodies should be auto-fetched
-                    const autoFetchRequest = req.request_body_size > 0 && req.request_body_size < 1048576 && req.is_request_body_text;
-                    const autoFetchResponse = req.response_body_size > 0 && req.response_body_size < 1048576 && req.is_response_body_text;
+                    // Get content types from parsed headers
+                    const reqContentTypeHeader = Object.keys(requestHeadersObj).find(k => k.toLowerCase() === 'content-type');
+                    const reqContentType = reqContentTypeHeader && requestHeadersObj[reqContentTypeHeader] ? (Array.isArray(requestHeadersObj[reqContentTypeHeader]) ? requestHeadersObj[reqContentTypeHeader][0] : requestHeadersObj[reqContentTypeHeader]) : '';
+
+                    const resContentTypeHeader = Object.keys(responseHeadersObj).find(k => k.toLowerCase() === 'content-type');
+                    const resContentType = resContentTypeHeader && responseHeadersObj[resContentTypeHeader] ? (Array.isArray(responseHeadersObj[resContentTypeHeader]) ? responseHeadersObj[resContentTypeHeader][0] : responseHeadersObj[resContentTypeHeader]) : '';
+
+                    // Determine how to display bodies
+                    const isRequestEmbeddable = req.request_body_size > 0 && (reqContentType.startsWith('image/') || reqContentType.startsWith('video/') || reqContentType === 'application/pdf');
+                    const isResponseEmbeddable = req.response_body_size > 0 && (resContentType.startsWith('image/') || resContentType.startsWith('video/') || resContentType === 'application/pdf');
+
+                    const autoFetchRequestText = req.request_body_size > 0 && req.request_body_size < 1048576 && req.is_request_body_text && !isRequestEmbeddable;
+                    const autoFetchResponseText = req.response_body_size > 0 && req.response_body_size < 1048576 && req.is_response_body_text && !isResponseEmbeddable;
+
+                    const showRequestButton = req.request_body_size > 0 && !isRequestEmbeddable && !autoFetchRequestText;
+                    const showResponseButton = req.response_body_size > 0 && !isResponseEmbeddable && !autoFetchResponseText;
 
                     detailContent.innerHTML = `
                         <div class="section">
@@ -1333,9 +1368,9 @@
                             <p>
                                 <strong>${i18n.t('size')}:</strong> ${req.request_body_size} bytes 
                                 (${req.is_request_body_text ? i18n.t('text') : i18n.t('binary')})
-                                ${req.request_body_size > 0 && !autoFetchRequest ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="request">${i18n.t('view_body')}</button>` : ''}
+                                ${showRequestButton ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="request">${i18n.t('view_body')}</button>` : ''}
                             </p>
-                            <pre id="requestBodyContent"></pre>
+                            <div id="requestBodyContainer"></div>
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-file-download"></i> ${i18n.t('response_headers')}</h3>
@@ -1346,18 +1381,18 @@
                             <p>
                                 <strong>${i18n.t('size')}:</strong> ${req.response_body_size} bytes 
                                 (${req.is_response_body_text ? i18n.t('text') : i18n.t('binary')})
-                                ${req.response_body_size > 0 && !autoFetchResponse ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response">${i18n.t('view_body')}</button>` : ''}
+                                ${showResponseButton ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response">${i18n.t('view_body')}</button>` : ''}
                             </p>
-                            <pre id="responseBodyContent"></pre>
+                            <div id="responseBodyContainer"></div>
                         </div>
                     `;
                     requestDetailModal.style.display = 'block';
 
-                    // Auto-fetch content if conditions are met
-                    if (autoFetchRequest) {
+                    // Auto-display content if conditions are met
+                    if (isRequestEmbeddable || autoFetchRequestText) {
                         fetchAndDisplayBody(req.id, 'request');
                     }
-                    if (autoFetchResponse) {
+                    if (isResponseEmbeddable || autoFetchResponseText) {
                         fetchAndDisplayBody(req.id, 'response');
                     }
                 } catch (error) {
