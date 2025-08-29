@@ -73,10 +73,10 @@ jobs:
       run: |
         mkdir -p release
         # Build for different platforms
-        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-windows-amd64.exe" .
-        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-linux-amd64" .
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-amd64" .
-        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-arm64" .
+        GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -o "release/dGateway-${{ env.VERSION }}-windows-amd64.exe" .
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -o "release/dGateway-${{ env.VERSION }}-linux-amd64" .
+        GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o "release/dGateway-${{ env.VERSION }}-darwin-amd64" .
+        GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o "release/dGateway-${{ env.VERSION }}-darwin-arm64" .
 
     - name: Create Release
       if: env.TAG_EXISTS == 'false'
