@@ -1238,6 +1238,50 @@
                 return tableHTML;
             }
 
+            // Function to fetch and display body content
+            async function fetchAndDisplayBody(id, type) {
+                const url = `/api/requests/body/${type}/${id}`;
+                const contentElementId = type === 'request' ? 'requestBodyContent' : 'responseBodyContent';
+                const contentElement = document.getElementById(contentElementId);
+
+                contentElement.textContent = i18n.t('loading_body'); // Show loading message
+
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const contentType = response.headers.get('Content-Type');
+                    const bodyContent = await response.text(); // Get as text for now
+
+                    // Attempt to parse as JSON if content type is JSON
+                    if (contentType && contentType.includes('application/json')) {
+                        try {
+                            const jsonObj = JSON.parse(bodyContent);
+                            contentElement.textContent = JSON.stringify(jsonObj, null, 2);
+                            contentElement.classList.add('formatted-json');
+                        } catch (e) {
+                            // Not valid JSON, display as plain text
+                            contentElement.textContent = bodyContent;
+                            contentElement.classList.remove('formatted-json');
+                        }
+                    } else if (contentType && (contentType.includes('text/') || contentType.includes('application/xml') || contentType.includes('application/javascript'))) {
+                        // For other text types, display as plain text
+                        contentElement.textContent = bodyContent;
+                        contentElement.classList.remove('formatted-json'); // Ensure no old class
+                        contentElement.classList.add('formatted-text');
+                    } else {
+                        // For binary or unknown types, display a message
+                        contentElement.textContent = `[${i18n.t('binary_or_unsupported_content')}]`;
+                        contentElement.classList.remove('formatted-json', 'formatted-text');
+                    }
+                } catch (error) {
+                    console.error(`Error fetching ${type} body:`, error);
+                    contentElement.textContent = `${i18n.t('error_fetching_body')}: ${error.message}`;
+                    contentElement.classList.remove('formatted-json', 'formatted-text');
+                }
+            }
+
             async function showRequestDetails(id) {
                 try {
                     const response = await fetch(`/api/requests/${id}`);
@@ -1426,9 +1470,22 @@
                         }
                     }
 
-                    // Parse headers for display
-                    const requestHeadersObj = JSON.parse(req.RequestHeaders);
-                    const responseHeadersObj = JSON.parse(req.ResponseHeaders);
+                    // Parse headers for display with error handling
+                    let requestHeadersObj = {};
+                    try {
+                        requestHeadersObj = JSON.parse(req.request_headers);
+                    } catch (e) {
+                        console.error('Error parsing request headers JSON:', e);
+                        requestHeadersObj = { 'Error': ['Invalid JSON format'] };
+                    }
+
+                    let responseHeadersObj = {};
+                    try {
+                        responseHeadersObj = JSON.parse(req.response_headers);
+                    } catch (e) {
+                        console.error('Error parsing response headers JSON:', e);
+                        responseHeadersObj = { 'Error': ['Invalid JSON format'] };
+                    }
 
                     detailContent.innerHTML = `
                         <div class="section">
@@ -1444,7 +1501,12 @@
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-file-alt"></i> ${i18n.t('request_body')}</h3>
-                            <pre>${req.RequestBody ? (function() { try { return decodeURIComponent(escape(atob(atob(req.RequestBody)))); } catch (e) { console.error('Error decoding request body:', e); return '[Decoding Error]'; } })() : req.RequestBody}</pre>
+                            <p>
+                                <strong>${i18n.t('size')}:</strong> ${req.request_body_size} bytes 
+                                (${req.is_request_body_text ? i18n.t('text') : i18n.t('binary')})
+                                ${req.request_body_size > 0 ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="request">${i18n.t('view_body')}</button>` : ''}
+                            </p>
+                            <pre id="requestBodyContent"></pre>
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-file-download"></i> ${i18n.t('response_headers')}</h3>
@@ -1452,7 +1514,12 @@
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-reply-all"></i> ${i18n.t('response_body')}</h3>
-                            <div>${renderResponseBody(req.ResponseHeaders, req.ResponseBody)}</div>
+                            <p>
+                                <strong>${i18n.t('size')}:</strong> ${req.response_body_size} bytes 
+                                (${req.is_response_body_text ? i18n.t('text') : i18n.t('binary')})
+                                ${req.response_body_size > 0 ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response">${i18n.t('view_body')}</button>` : ''}
+                            </p>
+                            <pre id="responseBodyContent"></pre>
                         </div>
                     `;
                     requestDetailModal.style.display = 'block';
@@ -1461,6 +1528,15 @@
                     showNotification(i18n.t('error_fetching_request_details'), 'error');
                 }
             }
+
+            // Event delegation for view body buttons
+            detailContent.addEventListener('click', (event) => {
+                if (event.target.classList.contains('view-body-btn')) {
+                    const id = event.target.dataset.id;
+                    const type = event.target.dataset.type;
+                    fetchAndDisplayBody(id, type);
+                }
+            });
 
             // Get the new close button for the detail modal
             const closeDetailModalButton = document.getElementById('closeDetailModalButton');
@@ -1527,12 +1603,37 @@
             });
 
             // Replay button click
-            replayButton.addEventListener('click', () => {
+            replayButton.addEventListener('click', async () => { // Made async
                 if (currentRequestData) {
                     document.getElementById('replayMethod').value = currentRequestData.Method;
                     document.getElementById('replayURL').value = currentRequestData.URL;
-                    document.getElementById('replayHeaders').value = JSON.stringify(JSON.parse(currentRequestData.RequestHeaders), null, 2);
-                    document.getElementById('replayBody').value = currentRequestData.RequestBody ? (function() { try { return decodeURIComponent(escape(atob(atob(currentRequestData.RequestBody)))); } catch (e) { console.error('Error decoding replay request body:', e); return '[Decoding Error]'; } })() : currentRequestData.RequestBody;
+                    let parsedRequestHeaders = {};
+                    try {
+                        parsedRequestHeaders = JSON.parse(currentRequestData.request_headers);
+                    } catch (e) {
+                        console.error('Error parsing request headers for replay form:', e);
+                        parsedRequestHeaders = { 'Error': ['Invalid JSON format'] };
+                    }
+                    document.getElementById('replayHeaders').value = JSON.stringify(parsedRequestHeaders, null, 2);
+
+                    // Fetch and populate request body for replay
+                    if (currentRequestData.request_body_size > 0) {
+                        try {
+                            const response = await fetch(`/api/requests/body/request/${currentRequestData.id}`);
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            const bodyContent = await response.text();
+                            document.getElementById('replayBody').value = bodyContent;
+                        } catch (error) {
+                            console.error('Error fetching request body for replay:', error);
+                            showNotification(i18n.t('error_fetching_body_for_replay'), 'error');
+                            document.getElementById('replayBody').value = `[${i18n.t('error_fetching_body')}]`;
+                        }
+                    } else {
+                        document.getElementById('replayBody').value = '';
+                    }
+
                     requestDetailModal.style.display = 'none'; // Hide detail modal
                     replayModal.style.display = 'block'; // Show replay modal
                 }

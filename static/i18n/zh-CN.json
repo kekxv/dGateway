@@ -53,5 +53,13 @@
   "recording_started_success": "记录已开始！",
   "recording_started_error": "启动记录失败。",
   "recording_stopped_success": "记录已停止！",
-  "recording_stopped_error": "停止记录失败。"
+  "recording_stopped_error": "停止记录失败。",
+  "size": "大小",
+  "text": "文本",
+  "binary": "二进制",
+  "view_body": "查看内容",
+  "loading_body": "加载内容中...",
+  "binary_or_unsupported_content": "二进制或不支持的内容",
+  "error_fetching_body": "获取内容失败",
+  "error_fetching_body_for_replay": "获取重放内容失败"
 }

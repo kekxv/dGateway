@@ -238,11 +238,12 @@ func getRequestDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row := db.QueryRow("SELECT id, timestamp, method, url, request_headers, request_body, status_code, response_headers, response_body FROM requests WHERE id = ?", id)
+	// Modified SQL query to fetch metadata instead of full bodies
+	row := db.QueryRow("SELECT id, timestamp, method, url, request_headers, request_body_size, is_request_body_text, status_code, response_headers, response_body_size, is_response_body_text FROM requests WHERE id = ?", id)
 
 	var req RequestLog
-	var reqBody, respBody []byte
-	if err := row.Scan(&req.ID, &req.Timestamp, &req.Method, &req.URL, &req.RequestHeaders, &reqBody, &req.StatusCode, &req.ResponseHeaders, &respBody); err != nil {
+	// Scan into the new metadata fields
+	if err := row.Scan(&req.ID, &req.Timestamp, &req.Method, &req.URL, &req.RequestHeaders, &req.RequestBodySize, &req.IsRequestBodyText, &req.StatusCode, &req.ResponseHeaders, &req.ResponseBodySize, &req.IsResponseBodyText); err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Request not found", http.StatusNotFound)
 			return
@@ -252,30 +253,35 @@ func getRequestDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Assign raw body data to the struct
-	req.RequestBody = reqBody
-	req.ResponseBody = respBody
-
-	// Process request body for display
-	if isTextData(req.RequestBody, getContentTypeFromHeaders(req.RequestHeaders)) {
-		// For text data, encode as base64 for safe JSON transmission
-		req.RequestBody = []byte(base64.StdEncoding.EncodeToString(req.RequestBody))
-	} else {
-		// For binary data, provide metadata
-		req.RequestBody = []byte(fmt.Sprintf("[Binary data: %d bytes]", len(req.RequestBody)))
-	}
-
-	// Process response body for display
-	if isTextData(req.ResponseBody, getContentTypeFromHeaders(req.ResponseHeaders)) {
-		// For text data, encode as base64 for safe JSON transmission
-		req.ResponseBody = []byte(base64.StdEncoding.EncodeToString(req.ResponseBody))
-	} else {
-		// For binary data, provide metadata
-		req.ResponseBody = []byte(fmt.Sprintf("[Binary data: %d bytes]", len(req.ResponseBody)))
+	// Create a response struct that only includes metadata for bodies
+	response := struct {
+		ID                int         `json:"id"`
+		Timestamp         time.Time   `json:"timestamp"`
+		Method            string      `json:"method"`
+		URL               string      `json:"url"`
+		RequestHeaders    string      `json:"request_headers"`
+		RequestBodySize   int         `json:"request_body_size"`
+		IsRequestBodyText bool        `json:"is_request_body_text"`
+		StatusCode        int         `json:"status_code"`
+		ResponseHeaders   string      `json:"response_headers"`
+		ResponseBodySize  int         `json:"response_body_size"`
+		IsResponseBodyText bool       `json:"is_response_body_text"`
+	}{
+		ID:                req.ID,
+		Timestamp:         req.Timestamp,
+		Method:            req.Method,
+		URL:               req.URL,
+		RequestHeaders:    req.RequestHeaders,
+		RequestBodySize:   req.RequestBodySize,
+		IsRequestBodyText: req.IsRequestBodyText,
+		StatusCode:        req.StatusCode,
+		ResponseHeaders:   req.ResponseHeaders,
+		ResponseBodySize:  req.ResponseBodySize,
+		IsResponseBodyText: req.IsResponseBodyText,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(req)
+	json.NewEncoder(w).Encode(response)
 }
 
 func replayRequest(w http.ResponseWriter, r *http.Request) {
@@ -561,6 +567,72 @@ func getRecordingStatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf(`{"status": "%s"}`, status)))
 }
 
+func getRequestBodyHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Path[len("/api/requests/body/request/"):]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid request ID", http.StatusBadRequest)
+		return
+	}
+
+	var reqBody []byte
+	var reqHeaders string
+	row := db.QueryRow("SELECT request_body, request_headers FROM requests WHERE id = ?", id)
+	if err := row.Scan(&reqBody, &reqHeaders); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Request not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch request body", http.StatusInternalServerError)
+		log.Printf("Error fetching request body for ID %d: %v", id, err)
+		return
+	}
+
+	// Try to set appropriate Content-Type
+	contentType := getContentTypeFromHeaders(reqHeaders)
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	} else {
+		// Default to plain text if content type is unknown
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+
+	w.Write(reqBody)
+}
+
+func getResponseBodyHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Path[len("/api/requests/body/response/"):]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid request ID", http.StatusBadRequest)
+		return
+	}
+
+	var respBody []byte
+	var respHeaders string
+	row := db.QueryRow("SELECT response_body, response_headers FROM requests WHERE id = ?", id)
+	if err := row.Scan(&respBody, &respHeaders); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Request not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch response body", http.StatusInternalServerError)
+		log.Printf("Error fetching response body for ID %d: %v", id, err)
+		return
+	}
+
+	// Try to set appropriate Content-Type
+	contentType := getContentTypeFromHeaders(respHeaders)
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	} else {
+		// Default to plain text if content type is unknown
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+
+	w.Write(respBody)
+}
+
 func main() {
 	port := flag.Int("port", 8080, "port to listen on for proxy")
 	target := flag.String("target", "http://127.0.0.1:8081", "target to forward requests to")
@@ -790,6 +862,8 @@ func main() {
 
 	// Admin API endpoints (protected)
 	adminMux.HandleFunc("/api/requests", authMiddleware(getRequests))
+	adminMux.HandleFunc("/api/requests/body/request/", authMiddleware(getRequestBodyHandler)) // /api/requests/body/request/{id}
+	adminMux.HandleFunc("/api/requests/body/response/", authMiddleware(getResponseBodyHandler)) // /api/requests/body/response/{id}
 	adminMux.HandleFunc("/api/requests/", authMiddleware(getRequestDetail)) // Trailing slash for ID
 	adminMux.HandleFunc("/api/replay", authMiddleware(replayRequest))
 	adminMux.HandleFunc("/api/start-recording", authMiddleware(startRecordingHandler))

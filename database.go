@@ -4,6 +4,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http" // Added for http.Header
 	"strings"
@@ -19,9 +20,13 @@ type RequestLog struct {
 	URL            string
 	RequestHeaders string // JSON string
 	RequestBody    []byte
+	RequestBodySize int // New field
+	IsRequestBodyText bool // New field
 	StatusCode     int
 	ResponseHeaders string // JSON string
 	ResponseBody   []byte
+	ResponseBodySize int // New field
+	IsResponseBodyText bool // New field
 }
 
 var db *sql.DB
@@ -52,6 +57,24 @@ func InitDB(dataSourceName string) {
 		log.Fatalf("Failed to create table: %v", err)
 	}
 
+	// Add new columns if they don't exist
+	// SQLite doesn't have IF NOT EXISTS for ADD COLUMN, so we check manually
+	// Start a transaction for schema modifications
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatalf("Failed to begin transaction for schema migration: %v", err)
+	}
+	defer tx.Rollback() // Rollback on error or if not committed
+
+	addColumnIfNotExists(tx, "requests", "request_body_size", "INTEGER")
+	addColumnIfNotExists(tx, "requests", "is_request_body_text", "BOOLEAN")
+	addColumnIfNotExists(tx, "requests", "response_body_size", "INTEGER")
+	addColumnIfNotExists(tx, "requests", "is_response_body_text", "BOOLEAN")
+
+	if err := tx.Commit(); err != nil {
+		log.Fatalf("Failed to commit schema migration: %v", err)
+	}
+
 	// Enable WAL mode for better concurrency
 	_, err = db.Exec("PRAGMA journal_mode=WAL;")
 	if err != nil {
@@ -61,13 +84,56 @@ func InitDB(dataSourceName string) {
 	log.Println("Database initialized successfully.")
 }
 
+// addColumnIfNotExists checks if a column exists and adds it if not.
+// It assumes it's called within a transaction.
+func addColumnIfNotExists(tx *sql.Tx, tableName, columnName, columnType string) {
+	query := fmt.Sprintf("PRAGMA table_info(%s);", tableName)
+	rows, err := tx.Query(query)
+	if err != nil {
+		log.Fatalf("Failed to query table info for %s: %v", tableName, err)
+	}
+	defer rows.Close()
+
+	columnExists := false
+	for rows.Next() {
+		var cid int
+		var name string
+		var ctype string
+		var notnull int
+		var dfltValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			log.Fatalf("Failed to scan table info row: %v", err)
+		}
+		if name == columnName {
+			columnExists = true
+			break
+		}
+	}
+
+	if !columnExists {
+		alterSQL := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s;", tableName, columnName, columnType)
+		_, err := tx.Exec(alterSQL)
+		if err != nil {
+			log.Fatalf("Failed to add column %s to table %s: %v", columnName, tableName, err)
+		}
+		log.Printf("Added column %s to table %s.", columnName, tableName)
+	}
+}
+
 func LogRequest(logEntry RequestLog) {
+	// Populate size and text/binary info
+	logEntry.RequestBodySize = len(logEntry.RequestBody)
+	logEntry.IsRequestBodyText = isTextData(logEntry.RequestBody, getContentTypeFromHeaders(logEntry.RequestHeaders))
+	logEntry.ResponseBodySize = len(logEntry.ResponseBody)
+	logEntry.IsResponseBodyText = isTextData(logEntry.ResponseBody, getContentTypeFromHeaders(logEntry.ResponseHeaders))
+
 	stmt, err := db.Prepare(`
 	INSERT INTO requests(
-		timestamp, method, url, request_headers, request_body,
-		status_code, response_headers, response_body
+		timestamp, method, url, request_headers, request_body, request_body_size, is_request_body_text,
+		status_code, response_headers, response_body, response_body_size, is_response_body_text
 	)
-	VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+	VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		log.Printf("Failed to prepare statement: %v", err)
@@ -81,9 +147,13 @@ func LogRequest(logEntry RequestLog) {
 		logEntry.URL,
 		logEntry.RequestHeaders,
 		logEntry.RequestBody,
+		logEntry.RequestBodySize,
+		logEntry.IsRequestBodyText,
 		logEntry.StatusCode,
 		logEntry.ResponseHeaders,
 		logEntry.ResponseBody,
+		logEntry.ResponseBodySize,
+		logEntry.IsResponseBodyText,
 	)
 	if err != nil {
 		log.Printf("Failed to insert log entry: %v", err)

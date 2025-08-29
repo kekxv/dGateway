@@ -53,5 +53,13 @@
   "recording_started_success": "Recording started!",
   "recording_started_error": "Failed to start recording.",
   "recording_stopped_success": "Recording stopped!",
-  "recording_stopped_error": "Failed to stop recording."
+  "recording_stopped_error": "Failed to stop recording.",
+  "size": "Size",
+  "text": "Text",
+  "binary": "Binary",
+  "view_body": "View Content",
+  "loading_body": "Loading Content...",
+  "binary_or_unsupported_content": "Binary or Unsupported Content",
+  "error_fetching_body": "Failed to fetch content",
+  "error_fetching_body_for_replay": "Failed to fetch content for replay"
 }
