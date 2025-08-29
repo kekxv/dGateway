@@ -1295,181 +1295,6 @@
                     const req = await response.json();
                     currentRequestData = req; // Store for replay
 
-                    // Function to check if content type is an image or video
-                    function isMediaContentType(contentType) {
-                        // Handle case where contentType might be an array
-                        let contentTypeString = '';
-                        
-                        if (Array.isArray(contentType)) {
-                            // Join array elements into a single string
-                            contentTypeString = contentType.join(',').toLowerCase();
-                        } else if (typeof contentType === 'string') {
-                            contentTypeString = contentType.toLowerCase();
-                        } else {
-                            // If it's neither string nor array, it's not media
-                            return false;
-                        }
-                        
-                        const isImage = (
-                            contentTypeString.startsWith('image/') ||
-                            contentTypeString.includes('jpeg') ||
-                            contentTypeString.includes('png') ||
-                            contentTypeString.includes('gif') ||
-                            contentTypeString.includes('webp') ||
-                            contentTypeString.includes('svg')
-                        );
-                        
-                        const isVideo = (
-                            contentTypeString.startsWith('video/') ||
-                            contentTypeString.includes('mp4') ||
-                            contentTypeString.includes('webm') ||
-                            contentTypeString.includes('ogg') ||
-                            contentTypeString.includes('avi') ||
-                            contentTypeString.includes('mov')
-                        );
-                        
-                        return isImage || isVideo;
-                    }
-
-                    // Function to render response body based on content type
-                    function renderResponseBody(responseHeaders, responseBody) {
-                        try {
-                            const headers = JSON.parse(responseHeaders);
-                            // Try different possible header names for Content-Type
-                            const contentType = headers['Content-Type'] || 
-                                              headers['content-type'] || 
-                                              headers['Content-type'] ||
-                                              headers['Content_Type'];
-                            
-                            // Check if content type is HTML
-                            const contentTypeString = Array.isArray(contentType) ? 
-                                contentType.join(',').toLowerCase() : 
-                                (typeof contentType === 'string' ? contentType.toLowerCase() : '');
-                            
-                            const isHtmlContentType = (
-                                contentTypeString && 
-                                (contentTypeString.startsWith('text/html') || 
-                                 contentTypeString.includes('html'))
-                            );
-                            
-                            if (isMediaContentType(contentType) && responseBody) {
-                                // Try to decode the base64 encoded media data
-                                try {
-                                    // First decode to get the actual base64 media data
-                                    const decodedDataBase64 = atob(responseBody);
-                                    
-                                    // Check if it's an image or video to render appropriately
-                                    const contentTypeString = Array.isArray(contentType) ? 
-                                        contentType.join(',').toLowerCase() : 
-                                        (typeof contentType === 'string' ? contentType.toLowerCase() : '');
-                                    
-                                    if (contentTypeString.startsWith('image/') || 
-                                        contentTypeString.includes('jpeg') || 
-                                        contentTypeString.includes('png') || 
-                                        contentTypeString.includes('gif') || 
-                                        contentTypeString.includes('webp') || 
-                                        contentTypeString.includes('svg')) {
-                                        // Create a data URL for the image
-                                        const imageDataUrl = `data:${Array.isArray(contentType) ? contentType[0] : contentType};base64,${decodedDataBase64}`;
-                                        return `<img src="${imageDataUrl}" style="max-width: 100%; height: auto;" />`;
-                                    } else if (contentTypeString.startsWith('video/') || 
-                                              contentTypeString.includes('mp4') || 
-                                              contentTypeString.includes('webm') || 
-                                              contentTypeString.includes('ogg') || 
-                                              contentTypeString.includes('avi') || 
-                                              contentTypeString.includes('mov')) {
-                                        // Create a data URL for the video
-                                        const videoDataUrl = `data:${Array.isArray(contentType) ? contentType[0] : contentType};base64,${decodedDataBase64}`;
-                                        return `<video controls style="max-width: 100%; height: auto;"><source src="${videoDataUrl}" type="${Array.isArray(contentType) ? contentType[0] : contentType}">Your browser does not support the video tag.</video>`;
-                                    } else {
-                                        // Fallback for other media types
-                                        return '<p>[Media content - not displayed]</p>';
-                                    }
-                                } catch (e) {
-                                    console.error('Error creating media data URL:', e);
-                                    return '<p>[Media rendering error]</p>';
-                                }
-                            } else if (isHtmlContentType && responseBody) {
-                                // Handle HTML content by displaying it as plain text
-                                try {
-                                    // First base64 decode
-                                    const decodedBase64 = atob(atob(responseBody));
-                                    try {
-                                        // Try to decode as UTF-8
-                                        const decodedText = decodeURIComponent(escape(decodedBase64));
-                                        // Escape HTML special characters to prevent rendering
-                                        return `<pre>${decodedText.replace(/&/g, "&amp;")
-                                            .replace(/</g, "&lt;")
-                                            .replace(/>/g, "&gt;")
-                                            .replace(/"/g, "&quot;")
-                                            .replace(/'/g, "&#039;")}</pre>`;
-                                    } catch (uriError) {
-                                        // If URI decoding fails, return the raw decoded data (escaped)
-                                        console.warn('URI decoding failed for HTML, returning raw data');
-                                        return `<pre>${decodedBase64.replace(/&/g, "&amp;")
-                                            .replace(/</g, "&lt;")
-                                            .replace(/>/g, "&gt;")
-                                            .replace(/"/g, "&quot;")
-                                            .replace(/'/g, "&#039;")}</pre>`;
-                                    }
-                                } catch (e) {
-                                    console.error('Error decoding HTML response body:', e);
-                                    return '<p>[HTML Decoding Error]</p>';
-                                }
-                            } else {
-                                // Default text rendering for other content types (JSON, JS, plain text, etc.)
-                                return responseBody ? (function() { 
-                                    try { 
-                                        // First base64 decode
-                                        const decodedBase64 = atob(atob(responseBody));
-                                        let finalText = '';
-                                        try {
-                                            // Try to decode as UTF-8
-                                            finalText = decodeURIComponent(escape(decodedBase64));
-                                        } catch (uriError) {
-                                            // If URI decoding fails, return the raw decoded data
-                                            console.warn('URI decoding failed, returning raw data');
-                                            finalText = decodedBase64;
-                                        }
-                                        
-                                        // Try to parse as JSON for better formatting
-                                        try {
-                                            const jsonObj = JSON.parse(finalText);
-                                            // If it's valid JSON, return prettified JSON
-                                            return `<pre class="formatted-json">${JSON.stringify(jsonObj, null, 2)}</pre>`;
-                                        } catch (jsonError) {
-                                            // If not JSON, check for common plain text subtypes that benefit from formatting
-                                            const isFormattedText = (
-                                                contentTypeString && 
-                                                (contentTypeString.includes('javascript') || 
-                                                 contentTypeString.includes('json') ||
-                                                 contentTypeString.includes('xml'))
-                                            );
-                                            
-                                            if (isFormattedText) {
-                                                // For JS, JSON (if not caught above), XML, etc., use formatted text block
-                                                return `<pre class="formatted-text">${finalText.replace(/&/g, "&amp;")
-                                                    .replace(/</g, "&lt;")
-                                                    .replace(/>/g, "&gt;")
-                                                    .replace(/"/g, "&quot;")
-                                                    .replace(/'/g, "&#039;")}</pre>`;
-                                            } else {
-                                                // For other plain text, return as is (within pre tag for whitespace)
-                                                return `<pre>${finalText}</pre>`;
-                                            }
-                                        }
-                                    } catch (e) { 
-                                        console.error('Error decoding or formatting response body:', e); 
-                                        return '[Decoding/Formatting Error]'; 
-                                    } 
-                                })() : responseBody;
-                            }
-                        } catch (e) {
-                            console.error('Error parsing response headers or rendering body:', e);
-                            return responseBody || '[Error rendering response body]';
-                        }
-                    }
-
                     // Parse headers for display with error handling
                     let requestHeadersObj = {};
                     try {
@@ -1486,6 +1311,10 @@
                         console.error('Error parsing response headers JSON:', e);
                         responseHeadersObj = { 'Error': ['Invalid JSON format'] };
                     }
+
+                    // Determine if bodies should be auto-fetched
+                    const autoFetchRequest = req.request_body_size > 0 && req.request_body_size < 1048576 && req.is_request_body_text;
+                    const autoFetchResponse = req.response_body_size > 0 && req.response_body_size < 1048576 && req.is_response_body_text;
 
                     detailContent.innerHTML = `
                         <div class="section">
@@ -1504,7 +1333,7 @@
                             <p>
                                 <strong>${i18n.t('size')}:</strong> ${req.request_body_size} bytes 
                                 (${req.is_request_body_text ? i18n.t('text') : i18n.t('binary')})
-                                ${req.request_body_size > 0 ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="request">${i18n.t('view_body')}</button>` : ''}
+                                ${req.request_body_size > 0 && !autoFetchRequest ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="request">${i18n.t('view_body')}</button>` : ''}
                             </p>
                             <pre id="requestBodyContent"></pre>
                         </div>
@@ -1517,12 +1346,20 @@
                             <p>
                                 <strong>${i18n.t('size')}:</strong> ${req.response_body_size} bytes 
                                 (${req.is_response_body_text ? i18n.t('text') : i18n.t('binary')})
-                                ${req.response_body_size > 0 ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response">${i18n.t('view_body')}</button>` : ''}
+                                ${req.response_body_size > 0 && !autoFetchResponse ? `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response">${i18n.t('view_body')}</button>` : ''}
                             </p>
                             <pre id="responseBodyContent"></pre>
                         </div>
                     `;
                     requestDetailModal.style.display = 'block';
+
+                    // Auto-fetch content if conditions are met
+                    if (autoFetchRequest) {
+                        fetchAndDisplayBody(req.id, 'request');
+                    }
+                    if (autoFetchResponse) {
+                        fetchAndDisplayBody(req.id, 'response');
+                    }
                 } catch (error) {
                     console.error('Error fetching request details:', error);
                     showNotification(i18n.t('error_fetching_request_details'), 'error');
