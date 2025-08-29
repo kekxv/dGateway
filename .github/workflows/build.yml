@@ -27,70 +27,19 @@ jobs:
       run: go mod verify
 
     - name: Build
-      run: go build -v ./...
+      run: CGO_ENABLED=0 go build -v ./...
 
     - name: Run tests
       run: go test -v ./...
 
-  # 新的 build job，使用 matrix 在多个操作系统上运行
-  build:
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            asset_suffix: "-linux-amd64"
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            asset_suffix: "-windows-amd64.exe"
-          - os: macos-latest
-            goos: darwin
-            goarch: amd64
-            asset_suffix: "-darwin-amd64"
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            asset_suffix: "-darwin-arm64"
-            
-    runs-on: ${{ matrix.os }}
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.25'
-
-    - name: Get version
-      id: get_version
-      run: echo "VERSION=$(cat version)" >> $GITHUB_ENV
-
-    - name: Build binary
-      run: |
-        # 我们不再需要 CGO_ENABLED=1，因为在原生环境上 Go 会自动处理
-        # GOOS 和 GOARCH 现在从 matrix 中获取
-        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o "release/dGateway-${{ env.VERSION }}${{ matrix.asset_suffix }}" .
-      shell: bash
-
-    - name: Upload binary artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: dGateway-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: release/dGateway-${{ env.VERSION }}${{ matrix.asset_suffix }}
-
-  # 新的 release job，用于整合所有二进制文件并发布
   release:
-    needs: build # 等待所有 build job 完成
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # 获取所有历史记录以检查 tag
+        fetch-depth: 0 # Fetch all history for all tags and branches
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -99,25 +48,27 @@ jobs:
 
     - name: Get version
       id: get_version
-      run: echo "VERSION=$(cat version)" >> $GITHUB_ENV
+      run: |
+        echo "VERSION=$(cat version)" >> $GITHUB_ENV
 
     - name: Check if tag exists
       id: check_tag
       run: |
         if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
-          echo "Tag v${{ env.VERSION }} already exists. Skipping release."
           echo "TAG_EXISTS=true" >> $GITHUB_ENV
         else
-          echo "Tag v${{ env.VERSION }} does not exist. Proceeding with release."
           echo "TAG_EXISTS=false" >> $GITHUB_ENV
         fi
 
-    - name: Download all artifacts
+    - name: Build binaries
       if: env.TAG_EXISTS == 'false'
-      uses: actions/download-artifact@v4
-      with:
-        # download-artifact v4 可以不指定名字，会下载所有 artifacts
-        path: release
+      run: |
+        mkdir -p release
+        # Build for different platforms
+        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-windows-amd64.exe" .
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-linux-amd64" .
+        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-amd64" .
+        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-arm64" .
 
     - name: Create tag
       if: env.TAG_EXISTS == 'false'
@@ -126,7 +77,7 @@ jobs:
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         git tag -a "v${{ env.VERSION }}" -m "Release version ${{ env.VERSION }}"
         git push origin "v${{ env.VERSION }}"
-        
+
     - name: Create Release
       if: env.TAG_EXISTS == 'false'
       uses: actions/create-release@v1
@@ -141,16 +92,11 @@ jobs:
 
     - name: Upload Release Assets
       if: env.TAG_EXISTS == 'false'
-      # 我们需要递归查找所有下载下来的文件并上传
       run: |
-        for dir in release/*; do
-          if [ -d "$dir" ]; then
-            for file in "$dir"/*; do
-              if [ -f "$file" ]; then
-                echo "Uploading $file..."
-                gh release upload "v${{ env.VERSION }}" "$file" --clobber
-              fi
-            done
+        for file in release/*; do
+          if [ -f "$file" ]; then
+            echo "Uploading $file..."
+            gh release upload "v${{ env.VERSION }}" "$file" --clobber
           fi
         done
       env:
