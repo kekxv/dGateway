@@ -350,7 +350,6 @@ func replayRequest(w http.ResponseWriter, r *http.Request) {
 		replayReq.Header.Set(k, strings.Join(v, ", "))
 	}
 
-	// --- Fix: Handle potential gzip encoding in response ---
 	// Execute the request
 	client := &http.Client{}
 	resp, err := client.Do(replayReq)
@@ -368,19 +367,33 @@ func replayRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if response is gzipped and decompress if necessary
-	var finalRespBody string
+	// Decompress if necessary
+	bodyBytes := respBody
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		decompressedBody, err := decompressGzip(respBody)
 		if err != nil {
 			log.Printf("Warning: Failed to decompress gzipped replay response from %s: %v", finalURL, err)
-			// If decompression fails, send the original compressed body
-			finalRespBody = base64.StdEncoding.EncodeToString(respBody) // Encode as base64 for safe JSON transport
+			// Keep original compressed body if decompression fails
+			bodyBytes = respBody
 		} else {
-			finalRespBody = string(decompressedBody)
+			bodyBytes = decompressedBody
 		}
+	}
+
+	// Determine if the content is text or binary
+	contentType := resp.Header.Get("Content-Type")
+	isText := strings.HasPrefix(contentType, "text/") || 
+			  strings.Contains(contentType, "json") || 
+			  strings.Contains(contentType, "xml") ||
+			  strings.Contains(contentType, "javascript")
+
+	var finalRespBody string
+	if isText {
+		// If it's text, convert to string directly
+		finalRespBody = string(bodyBytes)
 	} else {
-		finalRespBody = string(respBody)
+		// If it's binary, Base64 encode it
+		finalRespBody = base64.StdEncoding.EncodeToString(bodyBytes)
 	}
 
 	// Return the replayed response details
@@ -391,12 +404,10 @@ func replayRequest(w http.ResponseWriter, r *http.Request) {
 	}{
 		StatusCode: resp.StatusCode,
 		Headers:    resp.Header,
-		Body:       finalRespBody, // Use the potentially decompressed body
+		Body:       finalRespBody,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	// --- Fix: Ensure JSON response is properly encoded ---
-	// json.NewEncoder handles most cases, but let's be explicit about potential encoding issues
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(result); err != nil {
 		log.Printf("Error encoding replay response JSON: %v", err)

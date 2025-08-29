@@ -841,7 +841,7 @@
                     <div class="response-meta" id="replayResponseMeta"><span data-i18n="status">状态</span>: - | <span data-i18n="timestamp">时间</span>: -</div>
                     <div class="response-content">
                         <div id="replayResponseHeaders"><span data-i18n="headers_will_appear_here">头部信息将显示在这里...</span></div>
-                        <pre id="replayResponseBody"><span data-i18n="body_will_appear_here">响应体将显示在这里...</span></pre>
+                        <div id="replayResponseBody" style="overflow-x: auto;"><span data-i18n="body_will_appear_here">响应体将显示在这里...</span></div>
                     </div>
                 </div>
             </div>
@@ -1526,24 +1526,20 @@
                 }
                 const body = document.getElementById('replayBody').value;
 
+                // Get the container
+                const replayResponseBodyDiv = document.getElementById('replayResponseBody');
+
                 // Clear previous response
-                replayResponseHeadersDiv.innerHTML = i18n.t('loading');
-                replayResponseBodyDiv.textContent = i18n.t('loading');
+                replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('loading')}</p>`;
+                replayResponseBodyDiv.innerHTML = `<p>${i18n.t('loading')}</p>`;
                 replayResponseMetaDiv.textContent = 'Status: - | Time: -';
 
                 const startTime = performance.now();
                 try {
                     const response = await fetch('/api/replay', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            method: method,
-                            url: url,
-                            headers: headers,
-                            body: body
-                        })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ method, url, headers, body })
                     });
 
                     const endTime = performance.now();
@@ -1555,36 +1551,80 @@
 
                     const result = await response.json();
                     
-                    // Update response meta information
                     replayResponseMetaDiv.textContent = `Status: ${result.statusCode} | Time: ${duration}ms`;
 
-                    // Format and display headers using the new table function
                     if (result.headers) {
                         replayResponseHeadersDiv.innerHTML = createHeadersTable(result.headers);
                     } else {
                         replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('no_headers')}</p>`;
                     }
 
-                    // Format and display body
-                    if (typeof result.body === 'string') {
+                    // New body handling logic
+                    replayResponseBodyDiv.innerHTML = ''; // Clear loading message
+
+                    const replayContentTypeHeader = Object.keys(result.headers).find(k => k.toLowerCase() === 'content-type');
+                    const replayContentType = replayContentTypeHeader ? (Array.isArray(result.headers[replayContentTypeHeader]) ? result.headers[replayContentTypeHeader][0] : result.headers[replayContentTypeHeader]) : '';
+
+                    if (result.body && (replayContentType.startsWith('image/') || replayContentType.startsWith('video/'))) {
                         try {
-                            // Try to parse body as JSON for formatting
-                            const parsedBody = JSON.parse(result.body);
-                            replayResponseBodyDiv.textContent = JSON.stringify(parsedBody, null, 2);
+                            const binaryString = atob(result.body);
+                            const len = binaryString.length;
+                            const bytes = new Uint8Array(len);
+                            for (let i = 0; i < len; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const blob = new Blob([bytes], { type: replayContentType });
+                            const objectURL = URL.createObjectURL(blob);
+
+                            if (replayContentType.startsWith('image/')) {
+                                const img = document.createElement('img');
+                                img.src = objectURL;
+                                img.style.maxWidth = '100%';
+                                img.style.height = 'auto';
+                                img.onload = () => URL.revokeObjectURL(objectURL);
+                                replayResponseBodyDiv.appendChild(img);
+                            } else if (replayContentType.startsWith('video/')) {
+                                const video = document.createElement('video');
+                                video.src = objectURL;
+                                video.controls = true;
+                                video.style.maxWidth = '100%';
+                                video.style.height = 'auto';
+                                video.oncanplay = () => URL.revokeObjectURL(objectURL);
+                                replayResponseBodyDiv.appendChild(video);
+                            }
                         } catch (e) {
-                            // If not JSON, display as plain text
-                            replayResponseBodyDiv.textContent = result.body;
+                            console.error('Error processing base64 body for replay:', e);
+                            replayResponseBodyDiv.textContent = '[Error rendering media content]';
                         }
                     } else {
-                        replayResponseBodyDiv.textContent = JSON.stringify(result.body, null, 2);
+                        // Fallback to text display
+                        const pre = document.createElement('pre');
+                        let bodyText = '';
+                        if (typeof result.body === 'string') {
+                            bodyText = result.body;
+                        } else if (result.body) {
+                            bodyText = JSON.stringify(result.body, null, 2);
+                        } else {
+                            bodyText = ''; // Empty body is just empty
+                        }
+
+                        try {
+                            const parsedJson = JSON.parse(bodyText);
+                            pre.textContent = JSON.stringify(parsedJson, null, 2);
+                            pre.classList.add('formatted-json');
+                        } catch (e) {
+                            pre.textContent = bodyText;
+                            if (bodyText) pre.classList.add('formatted-text');
+                        }
+                        replayResponseBodyDiv.appendChild(pre);
                     }
                 } catch (error) {
                     console.error('Error replaying request:', error);
                     const endTime = performance.now();
                     const duration = (endTime - startTime).toFixed(2);
                     replayResponseMetaDiv.textContent = `Status: Error | Time: ${duration}ms`;
-                    replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('error_fetching_requests')}</p>`;
-                    replayResponseBodyDiv.textContent = `Error: ${error.message}`;
+                    replayResponseHeadersDiv.innerHTML = `<p>${i18n.t('error_during_replay')}</p>`;
+                    replayResponseBodyDiv.innerHTML = `<p>Error: ${error.message}</p>`;
                 }
             });
 
