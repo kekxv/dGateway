@@ -678,6 +678,34 @@
             background-color: var(--secondary-color);
         }
 
+        .collapsible-header {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .collapsible-header .toggle-icon {
+            font-size: 1.5rem;
+            font-weight: bold;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .collapsible-header.active .toggle-icon {
+            transform: rotate(45deg);
+        }
+
+        .collapsible-content {
+            display: none;
+            padding-top: 1rem;
+            animation: fadeInContent 0.3s ease;
+        }
+
+        @keyframes fadeInContent {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         @keyframes slideInNotification {
             from {
                 opacity: 0;
@@ -1525,8 +1553,13 @@
                             <p><strong>${i18n.t('status')}:</strong> ${req.status_code}</p>
                         </div>
                         <div class="section">
-                            <h3><i class="fas fa-paper-plane"></i> ${i18n.t('request_headers')}</h3>
-                            ${createHeadersTable(requestHeadersObj)}
+                            <h3 class="collapsible-header">
+                                <span><i class="fas fa-paper-plane"></i> ${i18n.t('request_headers')}</span>
+                                <span class="toggle-icon">+</span>
+                            </h3>
+                            <div class="collapsible-content">
+                                ${createHeadersTable(requestHeadersObj)}
+                            </div>
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-file-alt"></i> ${i18n.t('request_body')}</h3>
@@ -1538,8 +1571,13 @@
                             <div id="requestBodyContainer"></div>
                         </div>
                         <div class="section">
-                            <h3><i class="fas fa-file-download"></i> ${i18n.t('response_headers')}</h3>
-                            ${createHeadersTable(responseHeadersObj)}
+                            <h3 class="collapsible-header">
+                                <span><i class="fas fa-file-download"></i> ${i18n.t('response_headers')}</span>
+                                <span class="toggle-icon">+</span>
+                            </h3>
+                            <div class="collapsible-content">
+                                ${createHeadersTable(responseHeadersObj)}
+                            </div>
                         </div>
                         <div class="section">
                             <h3><i class="fas fa-reply-all"></i> ${i18n.t('response_body')}</h3>
@@ -1574,12 +1612,28 @@
                 }
             }
 
-            // Event delegation for view body buttons
+            // Event delegation for view body buttons and collapsible headers
             detailContent.addEventListener('click', (event) => {
+                // For view body buttons
                 if (event.target.classList.contains('view-body-btn')) {
                     const id = event.target.dataset.id;
                     const type = event.target.dataset.type;
                     fetchAndDisplayBody(id, type);
+                    return; // Prevent other actions
+                }
+
+                // For collapsible headers
+                const header = event.target.closest('.collapsible-header');
+                if (header) {
+                    header.classList.toggle('active');
+                    const content = header.nextElementSibling;
+                    if (content && content.classList.contains('collapsible-content')) {
+                        if (content.style.display === 'block') {
+                            content.style.display = 'none';
+                        } else {
+                            content.style.display = 'block';
+                        }
+                    }
                 }
             });
 
