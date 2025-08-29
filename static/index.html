@@ -609,6 +609,23 @@
             white-space: nowrap;
         }
 
+        /* Detail section styling */
+        .detail-section {
+            border: 1px solid #e0e0e0;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            background-color: #fafafa;
+        }
+
+        .detail-section h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            color: var(--primary-color);
+        }
+
         @keyframes fadeIn {
             from {opacity: 0;}
             to {opacity: 1;}
@@ -1242,106 +1259,9 @@
                 }
             });
 
+            // --- Utility Functions for Request/Response Details ---
+
             // Function to create a table with headers data
-            function createHeadersTable(headersObj) {
-                if (!headersObj || typeof headersObj !== 'object') {
-                    return `<p>${i18n.t('no_headers_available')}</p>`;
-                }
-                
-                let tableHTML = '<table class="headers-table"><thead><tr><th>Key</th><th>Value(s)</th></tr></thead><tbody>';
-                
-                for (const [key, values] of Object.entries(headersObj)) {
-                    // Ensure values is an array
-                    const valuesArray = Array.isArray(values) ? values : [values];
-                    
-                    // Create tags for each value
-                    const tagsHTML = valuesArray.map(value => 
-                        `<span class="header-tag">${value}</span>`
-                    ).join('');
-                    
-                    tableHTML += `<tr><td><strong>${key}</strong></td><td>${tagsHTML}</td></tr>`;
-                }
-                
-                tableHTML += '</tbody></table>';
-                return tableHTML;
-            }
-
-            // Function to fetch and display body content
-            async function fetchAndDisplayBody(id, type) {
-                const containerId = type === 'request' ? 'requestBodyContainer' : 'responseBodyContainer';
-                const container = document.getElementById(containerId);
-                if (!container) return;
-                container.innerHTML = ''; // Clear
-
-                const req = currentRequestData;
-                if (!req || req.id !== id) {
-                    console.error("Request data mismatch for fetchAndDisplayBody");
-                    return;
-                }
-
-                const headersStr = (type === 'request') ? req.request_headers : req.response_headers;
-                const size = (type === 'request') ? req.request_body_size : req.response_body_size;
-                const isText = (type === 'request') ? req.is_request_body_text : req.is_response_body_text;
-                const bodyUrl = `/api/requests/body/${type}/${req.id}`;
-
-                let headersObj = {};
-                try { headersObj = JSON.parse(headersStr); } catch (e) {}
-
-                const contentTypeHeader = Object.keys(headersObj).find(k => k.toLowerCase() === 'content-type');
-                const contentType = contentTypeHeader && headersObj[contentTypeHeader] ? (Array.isArray(headersObj[contentTypeHeader]) ? headersObj[contentTypeHeader][0] : headersObj[contentTypeHeader]) : '';
-
-                // Use direct URL for embeddable media types
-                if (size > 0) {
-                    if (contentType.startsWith('image/')) {
-                        container.innerHTML = `<img src="${bodyUrl}" style="max-width: 100%; height: auto;" alt="Image content" />`;
-                        return;
-                    }
-                    if (contentType.startsWith('video/')) {
-                        container.innerHTML = `<video src="${bodyUrl}" controls style="max-width: 100%; height: auto;"></video>`;
-                        return;
-                    }
-                    if (contentType === 'application/pdf') {
-                        container.innerHTML = `<embed src="${bodyUrl}" type="application/pdf" style="width: 100%; height: 60vh;" />`;
-                        return;
-                    }
-                }
-
-                // Fallback to fetching for text content
-                const loading = document.createElement('p');
-                loading.textContent = i18n.t('loading_body');
-                container.appendChild(loading);
-
-                try {
-                    const response = await fetch(bodyUrl);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    
-                    const fetchedContentType = response.headers.get('Content-Type') || '';
-                    const bodyContent = await response.text();
-
-                    container.innerHTML = '';
-                    const pre = document.createElement('pre');
-                    if (fetchedContentType.includes('application/json')) {
-                        try {
-                            const jsonObj = JSON.parse(bodyContent);
-                            pre.textContent = JSON.stringify(jsonObj, null, 2);
-                            pre.classList.add('formatted-json');
-                        } catch (e) {
-                            pre.textContent = bodyContent;
-                            pre.classList.add('formatted-text');
-                        }
-                    } else if (isText) {
-                        pre.textContent = bodyContent;
-                        pre.classList.add('formatted-text');
-                    } else {
-                         pre.textContent = `[${i18n.t('binary_or_unsupported_content')}] (${fetchedContentType})`;
-                    }
-                    container.appendChild(pre);
-                } catch (error) {
-                    console.error(`Error fetching ${type} body:`, error);
-                    container.textContent = `${i18n.t('error_fetching_body')}: ${error.message}`;
-                }
-            }
-
             function createHeadersTable(headersObj) {
                 if (!headersObj || typeof headersObj !== 'object') {
                     return `<p>${i18n.t('no_headers_available')}</p>`;
@@ -1404,6 +1324,28 @@
                     'application/xml': 'xml'
                 };
                 return mimeMap[contentType.split(';')[0]] || 'bin';
+            }
+
+            // Function to determine how to display/handle the response body in the detail modal
+            function getResponseBodyDisplayOptions(req, responseHeadersObj, resContentType) {
+                const resSize = req.response_body_size;
+                const resIsText = req.is_response_body_text;
+
+                const isResponseEmbeddable = resSize > 0 && (resContentType.startsWith('image/') || resContentType.startsWith('video/') || resContentType === 'application/pdf');
+                const isResponseTooLarge = resSize > (5 * 1024 * 1024); // 5MB
+                const isResponseGenericBinary = resSize > 0 && !resIsText && !isResponseEmbeddable;
+
+                const showDownloadButton = isResponseTooLarge || isResponseGenericBinary;
+                const autoDisplayEmbeddable = isResponseEmbeddable && !showDownloadButton;
+                const autoDisplayText = resIsText && resSize > 0 && resSize < 1048576 && !showDownloadButton; // 1MB
+                const showViewButton = resSize > 0 && !showDownloadButton && !autoDisplayEmbeddable && !autoDisplayText;
+
+                return {
+                    showDownloadButton,
+                    autoDisplayEmbeddable,
+                    autoDisplayText,
+                    showViewButton
+                };
             }
 
             // Function to fetch and display body content
@@ -1509,24 +1451,15 @@
                     const autoFetchRequestText = req.request_body_size > 0 && req.request_body_size < 1048576 && req.is_request_body_text && !isRequestEmbeddable;
                     const showRequestButton = req.request_body_size > 0 && !isRequestEmbeddable && !autoFetchRequestText;
 
-                    // --- New Response Body Logic ---
+                    // --- Response Body Logic ---
                     const resContentTypeHeader = Object.keys(responseHeadersObj).find(k => k.toLowerCase() === 'content-type');
                     const resContentType = resContentTypeHeader && responseHeadersObj[resContentTypeHeader] ? (Array.isArray(responseHeadersObj[resContentTypeHeader]) ? responseHeadersObj[resContentTypeHeader][0] : responseHeadersObj[resContentTypeHeader]) : '';
                     
-                    const resSize = req.response_body_size;
-                    const resIsText = req.is_response_body_text;
-
-                    const isResponseEmbeddable = resSize > 0 && (resContentType.startsWith('image/') || resContentType.startsWith('video/') || resContentType === 'application/pdf');
-                    const isResponseTooLarge = resSize > (5 * 1024 * 1024);
-                    const isResponseGenericBinary = resSize > 0 && !resIsText && !isResponseEmbeddable;
-
-                    const showDownloadButton = isResponseTooLarge || isResponseGenericBinary;
-                    const autoDisplayEmbeddable = isResponseEmbeddable && !showDownloadButton;
-                    const autoDisplayText = resIsText && resSize > 0 && resSize < 1048576 && !showDownloadButton;
-                    const showViewButton = resSize > 0 && !showDownloadButton && !autoDisplayEmbeddable && !autoDisplayText;
-
+                    // Get response body display options using the new utility function
+                    const resBodyOptions = getResponseBodyDisplayOptions(req, responseHeadersObj, resContentType);
+                    
                     let responseBodyControls = '';
-                    if (showDownloadButton) {
+                    if (resBodyOptions.showDownloadButton) {
                         let filename = getFilenameFromHeaders(responseHeadersObj);
                         if (!filename) {
                             try {
@@ -1540,19 +1473,19 @@
                             }
                         }
                         responseBodyControls = `<a href="/api/requests/body/response/${req.id}" class="btn btn-primary btn-sm" download="${filename}"><i class="fas fa-download"></i> Download Body</a>`;
-                    } else if (showViewButton) {
+                    } else if (resBodyOptions.showViewButton) {
                         responseBodyControls = `<button class="btn btn-secondary btn-sm view-body-btn" data-id="${req.id}" data-type="response"><i class="fas fa-eye"></i> View Body</button>`;
                     }
 
                     detailContent.innerHTML = `
-                        <div class="section">
+                        <div class="detail-section">
                             <h3><i class="fas fa-fingerprint"></i> ID: ${req.id}</h3>
                             <p><strong>${i18n.t('timestamp')}:</strong> ${new Date(req.timestamp).toLocaleString()}</p>
                             <p><strong>${i18n.t('method')}:</strong> ${req.method}</p>
                             <p><strong>${i18n.t('url')}:</strong> ${req.url}</p>
                             <p><strong>${i18n.t('status')}:</strong> ${req.status_code}</p>
                         </div>
-                        <div class="section">
+                        <div class="detail-section">
                             <h3 class="collapsible-header">
                                 <span><i class="fas fa-paper-plane"></i> ${i18n.t('request_headers')}</span>
                                 <span class="toggle-icon">+</span>
@@ -1561,7 +1494,7 @@
                                 ${createHeadersTable(requestHeadersObj)}
                             </div>
                         </div>
-                        <div class="section">
+                        <div class="detail-section">
                             <h3><i class="fas fa-file-alt"></i> ${i18n.t('request_body')}</h3>
                             <p>
                                 <strong>${i18n.t('size')}:</strong> ${req.request_body_size} bytes 
@@ -1570,7 +1503,7 @@
                             </p>
                             <div id="requestBodyContainer"></div>
                         </div>
-                        <div class="section">
+                        <div class="detail-section">
                             <h3 class="collapsible-header">
                                 <span><i class="fas fa-file-download"></i> ${i18n.t('response_headers')}</span>
                                 <span class="toggle-icon">+</span>
@@ -1579,11 +1512,11 @@
                                 ${createHeadersTable(responseHeadersObj)}
                             </div>
                         </div>
-                        <div class="section">
+                        <div class="detail-section">
                             <h3><i class="fas fa-reply-all"></i> ${i18n.t('response_body')}</h3>
                             <p>
-                                <strong>${i18n.t('size')}:</strong> ${resSize} bytes 
-                                (${resIsText ? i18n.t('text') : i18n.t('binary')})
+                                <strong>${i18n.t('size')}:</strong> ${req.response_body_size} bytes 
+                                (${req.is_response_body_text ? i18n.t('text') : i18n.t('binary')})
                                 ${responseBodyControls}
                             </p>
                             <div id="responseBodyContainer"></div>
@@ -1599,8 +1532,8 @@
                         if(requestBodyContainer) requestBodyContainer.innerHTML = '';
                     }
 
-                    // Auto-display response body
-                    if (autoDisplayEmbeddable || autoDisplayText) {
+                    // Auto-display response body using the new options object
+                    if (resBodyOptions.autoDisplayEmbeddable || resBodyOptions.autoDisplayText) {
                         fetchAndDisplayBody(req.id, 'response');
                     } else {
                         const responseBodyContainer = document.getElementById('responseBodyContainer');
