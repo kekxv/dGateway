@@ -13,6 +13,7 @@ dGateway is a simple HTTP/HTTPS proxy that logs all incoming requests and their 
     *   Allows viewing detailed information for each request.
     *   Supports replaying requests with modifiable parameters (method, URL, headers, body).
     *   **Multi-language Support**: The admin panel supports multiple languages (English and Chinese by default). Language files are located in `static/i18n/`.
+    *   **HAR Export**: Export recorded requests in HAR (HTTP Archive) format for analysis in other tools.
 
 ## Getting Started
 
@@ -85,6 +86,7 @@ The admin panel will be available on `http://localhost:<proxy_port + 1>`. For ex
 2.  **View Logs**: Open the admin panel in your browser, log in, and you will see a list of all recorded requests.
 3.  **Inspect Details**: Click on any request in the list to view its full details, including request headers, body, response headers, and response body. Decompressed bodies will be displayed.
 4.  **Replay Requests**: From the request details view, you can click the "Replay Request" button. This will open a form where you can modify the request's method, URL, headers, and body before sending it again. The response from the replayed request will be displayed.
+5.  **Export HAR**: From the main admin panel, click the "Export HAR" button to download all recorded requests in HAR (HTTP Archive) format. This file can be used for further analysis in tools like Chrome DevTools or other HAR analyzers.
 
 ## Project Structure
 
@@ -92,6 +94,7 @@ The admin panel will be available on `http://localhost:<proxy_port + 1>`. For ex
 .dGateway/
 ├── main.go             # Main application logic, proxy, and admin server setup
 ├── database.go         # Database initialization and logging functions
+├── har_export.go       # HAR export functionality
 ├── static/             # Frontend static files (HTML, CSS, JS)
 │   ├── index.html      # Main admin dashboard page
 │   └── login.html      # Login page
@@ -114,5 +117,4 @@ The admin panel will be available on `http://localhost:<proxy_port + 1>`. For ex
 
 *   More robust authentication and user management.
 *   Filtering and searching capabilities for recorded requests.
-*   Exporting recorded requests.
 *   Improved UI/UX for the admin panel.
