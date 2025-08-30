@@ -839,8 +839,50 @@ func main() {
 	adminPort := *port + 1
 	adminMux := http.NewServeMux()
 
-	// Serve static files from embedded file system
+	// Serve static files from embedded file system, including subdirectories like /static/vendor
 	adminMux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFiles))))
+
+	// Custom handler for vendor files to debug path issues
+	adminMux.HandleFunc("/vendor/", func(w http.ResponseWriter, r *http.Request) {
+		// Extract the path after /vendor/
+		filePath := r.URL.Path[len("/vendor/"):]
+
+		// Construct the full path within the embedded 'static' directory
+		fullEmbeddedPath := path.Join("static", "vendor", filePath)
+
+		content, err := staticFiles.ReadFile(fullEmbeddedPath)
+		if err != nil {
+			log.Printf("Error reading embedded file %s: %v", fullEmbeddedPath, err)
+			http.NotFound(w, r)
+			return
+		}
+
+		// Determine Content-Type based on file extension
+		contentType := "application/octet-stream"
+		switch {
+		case strings.HasSuffix(filePath, ".css"):
+			contentType = "text/css"
+		case strings.HasSuffix(filePath, ".js"):
+			contentType = "application/javascript"
+		case strings.HasSuffix(filePath, ".json"):
+			contentType = "application/json"
+		case strings.HasSuffix(filePath, ".html"):
+			contentType = "text/html"
+		case strings.HasSuffix(filePath, ".woff2"):
+			contentType = "font/woff2"
+		case strings.HasSuffix(filePath, ".woff"):
+			contentType = "font/woff"
+		case strings.HasSuffix(filePath, ".ttf"):
+			contentType = "font/ttf"
+		case strings.HasSuffix(filePath, ".eot"):
+			contentType = "application/vnd.ms-fontobject"
+		case strings.HasSuffix(filePath, ".svg"):
+			contentType = "image/svg+xml"
+		}
+
+		w.Header().Set("Content-Type", contentType)
+		w.Write(content)
+	})
 
 	// Serve i18n files with proper content type from embedded file system
 	adminMux.HandleFunc("/i18n/", func(w http.ResponseWriter, r *http.Request) {

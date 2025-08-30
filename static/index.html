@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>dGateway Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="./vendor/highlight.js/styles/atom-one-dark.min.css">
+    <script src="./vendor/highlight.js/highlight.min.js"></script>
+    <script src="./vendor/highlight.js/languages/json.min.js"></script>
+    <script src="./vendor/highlight.js/languages/xml.min.js"></script>
+    <script src="./vendor/highlight.js/languages/css.min.js"></script>
+    <script src="./vendor/highlight.js/languages/javascript.min.js"></script>
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -46,7 +52,7 @@
         }
 
         header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: linear-gradient(135deg, #2a3a5b, #4a70a8);
             color: var(--light-text);
             padding: 1rem 2rem;
             display: flex;
@@ -95,6 +101,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .btn-primary {
@@ -105,6 +112,7 @@
         .btn-primary:hover {
             background-color: #2980b9;
             transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .btn-danger {
@@ -115,6 +123,7 @@
         .btn-danger:hover {
             background-color: #c0392b;
             transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .btn-success {
@@ -125,6 +134,7 @@
         .btn-success:hover {
             background-color: #27ae60;
             transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .btn i {
@@ -139,6 +149,7 @@
         .btn-secondary:hover {
             background-color: #7f8c8d;
             transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         main {
@@ -469,18 +480,6 @@
             line-height: 1.4;
             white-space: pre-wrap; /* Ensure long lines wrap */
             word-wrap: break-word; /* Ensure long words break */
-        }
-        
-        /* Specific styles for formatted JSON */
-        .formatted-json {
-            background-color: #1a2530;
-            border-left: 4px solid #3498db;
-        }
-        
-        /* Specific styles for other formatted text (JS, XML, etc.) */
-        .formatted-text {
-            background-color: #1a2530;
-            border-left: 4px solid #2ecc71;
         }
 
         label {
@@ -1415,22 +1414,44 @@
 
                     container.innerHTML = '';
                     const pre = document.createElement('pre');
+                    let language = '';
+
                     if (fetchedContentType.includes('application/json')) {
                         try {
                             const jsonObj = JSON.parse(bodyContent);
                             pre.textContent = JSON.stringify(jsonObj, null, 2);
-                            pre.classList.add('formatted-json');
+                            language = 'json';
                         } catch (e) {
                             pre.textContent = bodyContent;
-                            pre.classList.add('formatted-text');
+                            language = 'plaintext'; // Fallback if not valid JSON
                         }
+                    } else if (fetchedContentType.includes('text/html')) {
+                        pre.textContent = bodyContent;
+                        language = 'xml'; // highlight.js uses xml for html
+                    } else if (fetchedContentType.includes('text/css')) {
+                        pre.textContent = bodyContent;
+                        language = 'css';
+                    } else if (fetchedContentType.includes('application/javascript') || fetchedContentType.includes('text/javascript')) {
+                        pre.textContent = bodyContent;
+                        language = 'javascript';
                     } else if (isText) {
                         pre.textContent = bodyContent;
-                        pre.classList.add('formatted-text');
+                        language = 'plaintext'; // Generic text
                     } else {
                          pre.textContent = `[${i18n.t('binary_or_unsupported_content')}] (${fetchedContentType})`;
                     }
+                    
                     container.appendChild(pre);
+
+                    if (language && hljs.getLanguage(language)) {
+                        pre.classList.add(`language-${language}`);
+                        hljs.highlightElement(pre);
+                    } else if (language === 'plaintext' && bodyContent) {
+                        // No specific highlighting for plaintext, but ensure it's displayed
+                    } else if (bodyContent) {
+                        // Attempt auto-detection for other text types if not explicitly handled
+                        hljs.highlightElement(pre);
+                    }
                 } catch (error) {
                     console.error(`Error fetching ${type} body:`, error);
                     container.textContent = `${i18n.t('error_fetching_body')}: ${error.message}`;
@@ -1808,15 +1829,44 @@
                         }
                     } else {
                         const pre = document.createElement('pre');
-                        try {
-                            const parsedJson = JSON.parse(rawBody);
-                            pre.textContent = JSON.stringify(parsedJson, null, 2);
-                            pre.classList.add('formatted-json');
-                        } catch (e) {
+                        let language = '';
+
+                        if (contentType.includes('application/json')) {
+                            try {
+                                const parsedJson = JSON.parse(rawBody);
+                                pre.textContent = JSON.stringify(parsedJson, null, 2);
+                                language = 'json';
+                            } catch (e) {
+                                pre.textContent = rawBody;
+                                language = 'plaintext';
+                            }
+                        } else if (contentType.includes('text/html')) {
                             pre.textContent = rawBody;
-                            if (rawBody) pre.classList.add('formatted-text');
+                            language = 'xml';
+                        } else if (contentType.includes('text/css')) {
+                            pre.textContent = rawBody;
+                            language = 'css';
+                        } else if (contentType.includes('application/javascript') || contentType.includes('text/javascript')) {
+                            pre.textContent = rawBody;
+                            language = 'javascript';
+                        } else if (isText) {
+                            pre.textContent = rawBody;
+                            language = 'plaintext';
+                        } else {
+                            pre.textContent = `[${i18n.t('binary_or_unsupported_content')}] (${contentType})`;
                         }
+                        
                         replayResponseBodyContainer.appendChild(pre);
+
+                        if (language && hljs.getLanguage(language)) {
+                            pre.classList.add(`language-${language}`);
+                            hljs.highlightElement(pre);
+                        } else if (language === 'plaintext' && rawBody) {
+                            // No specific highlighting for plaintext
+                        } else if (rawBody) {
+                            // Attempt auto-detection for other text types if not explicitly handled
+                            hljs.highlightElement(pre);
+                        }
                     }
                 } catch (error) {
                     console.error('Error replaying request:', error);
