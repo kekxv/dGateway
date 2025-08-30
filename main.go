@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -33,7 +32,7 @@ import (
 //go:embed static
 var staticFiles embed.FS // Embed the static directory
 
-var IsRecording bool // Global variable to control recording state
+var IsRecording bool               // Global variable to control recording state
 var requestLogChan chan RequestLog // Channel for logging requests asynchronously
 
 // ProxyHandler holds the reverse proxy and handles logging
@@ -255,28 +254,28 @@ func getRequestDetail(w http.ResponseWriter, r *http.Request) {
 
 	// Create a response struct that only includes metadata for bodies
 	response := struct {
-		ID                int         `json:"id"`
-		Timestamp         time.Time   `json:"timestamp"`
-		Method            string      `json:"method"`
-		URL               string      `json:"url"`
-		RequestHeaders    string      `json:"request_headers"`
-		RequestBodySize   int         `json:"request_body_size"`
-		IsRequestBodyText bool        `json:"is_request_body_text"`
-		StatusCode        int         `json:"status_code"`
-		ResponseHeaders   string      `json:"response_headers"`
-		ResponseBodySize  int         `json:"response_body_size"`
-		IsResponseBodyText bool       `json:"is_response_body_text"`
+		ID                 int       `json:"id"`
+		Timestamp          time.Time `json:"timestamp"`
+		Method             string    `json:"method"`
+		URL                string    `json:"url"`
+		RequestHeaders     string    `json:"request_headers"`
+		RequestBodySize    int       `json:"request_body_size"`
+		IsRequestBodyText  bool      `json:"is_request_body_text"`
+		StatusCode         int       `json:"status_code"`
+		ResponseHeaders    string    `json:"response_headers"`
+		ResponseBodySize   int       `json:"response_body_size"`
+		IsResponseBodyText bool      `json:"is_response_body_text"`
 	}{
-		ID:                req.ID,
-		Timestamp:         req.Timestamp,
-		Method:            req.Method,
-		URL:               req.URL,
-		RequestHeaders:    req.RequestHeaders,
-		RequestBodySize:   req.RequestBodySize,
-		IsRequestBodyText: req.IsRequestBodyText,
-		StatusCode:        req.StatusCode,
-		ResponseHeaders:   req.ResponseHeaders,
-		ResponseBodySize:  req.ResponseBodySize,
+		ID:                 req.ID,
+		Timestamp:          req.Timestamp,
+		Method:             req.Method,
+		URL:                req.URL,
+		RequestHeaders:     req.RequestHeaders,
+		RequestBodySize:    req.RequestBodySize,
+		IsRequestBodyText:  req.IsRequestBodyText,
+		StatusCode:         req.StatusCode,
+		ResponseHeaders:    req.ResponseHeaders,
+		ResponseBodySize:   req.ResponseBodySize,
 		IsResponseBodyText: req.IsResponseBodyText,
 	}
 
@@ -331,7 +330,7 @@ func replayRequest(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error parsing replay URL: %v", err)
 		return
 	}
-	
+
 	// If the URL from replay data is relative (no scheme), resolve it against the target
 	finalURL := parsedTarget.ResolveReference(parsedReplayURL).String()
 
@@ -382,10 +381,10 @@ func replayRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Determine if the content is text or binary
 	contentType := resp.Header.Get("Content-Type")
-	isText := strings.HasPrefix(contentType, "text/") || 
-			  strings.Contains(contentType, "json") || 
-			  strings.Contains(contentType, "xml") ||
-			  strings.Contains(contentType, "javascript")
+	isText := strings.HasPrefix(contentType, "text/") ||
+		strings.Contains(contentType, "json") ||
+		strings.Contains(contentType, "xml") ||
+		strings.Contains(contentType, "javascript")
 
 	var finalRespBody string
 	if isText {
@@ -644,6 +643,52 @@ func getResponseBodyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBody)
 }
 
+func exportHARHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get all requests from database
+	rows, err := db.Query("SELECT id, timestamp, method, url, request_headers, request_body, status_code, response_headers, response_body FROM requests ORDER BY timestamp")
+	if err != nil {
+		http.Error(w, "Failed to fetch requests", http.StatusInternalServerError)
+		log.Printf("Error fetching requests: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	var requests []RequestLog
+	for rows.Next() {
+		var req RequestLog
+		if err := rows.Scan(&req.ID, &req.Timestamp, &req.Method, &req.URL, &req.RequestHeaders, &req.RequestBody, &req.StatusCode, &req.ResponseHeaders, &req.ResponseBody); err != nil {
+			log.Printf("Error scanning request: %v", err)
+			continue
+		}
+		requests = append(requests, req)
+	}
+
+	// Convert to HAR format
+	har, err := exportRequestsToHAR(requests)
+	if err != nil {
+		http.Error(w, "Failed to export requests to HAR format", http.StatusInternalServerError)
+		log.Printf("Error exporting to HAR: %v", err)
+		return
+	}
+
+	// Set response headers for file download
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"dgateway-export.har\"")
+
+	// Encode and send HAR file
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(har); err != nil {
+		log.Printf("Error encoding HAR JSON: %v", err)
+		http.Error(w, "Failed to encode HAR file", http.StatusInternalServerError)
+		return
+	}
+}
 func main() {
 	port := flag.Int("port", 8080, "port to listen on for proxy")
 	target := flag.String("target", "http://127.0.0.1:8081", "target to forward requests to")
@@ -689,7 +734,7 @@ func main() {
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(remote)
-	
+
 	// Custom response modifier to capture, decompress, and ensure correct headers
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		// Get the request log from context
@@ -698,13 +743,13 @@ func main() {
 			log.Printf("Failed to get request log from context")
 			return nil // Not an error for the client, just for our logging
 		}
-		
+
 		// Capture response status code
 		reqLog.StatusCode = resp.StatusCode
-		
+
 		// Capture response headers (do this early to preserve original headers for logging)
 		reqLog.ResponseHeaders = HeadersToJSON(resp.Header)
-		
+
 		// Capture response body
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -729,13 +774,13 @@ func main() {
 				resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
 			}
 		}
-		
+
 		// Store potentially modified body for logging
 		reqLog.ResponseBody = body
-		
+
 		// Update response with the (possibly modified) body
 		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-		
+
 		// Log to database if recording is enabled
 		if IsRecording {
 			select {
@@ -745,21 +790,21 @@ func main() {
 				log.Println("Request log channel is full, dropping log entry.")
 			}
 		}
-		
+
 		return nil
 	}
 
 	proxyHandler := &ProxyHandler{proxy: proxy}
-	
+
 	// Start server with HTTPS support if enabled
 	go func() {
 		if *enableHTTPS {
 			log.Printf("Proxy server listening on port %d with HTTPS support, forwarding to %s", *port, *target)
-			
+
 			// Certificate files
 			certFile := "certs/server.crt"
 			keyFile := "certs/server.key"
-			
+
 			// Check if certificate files exist
 			if _, err := os.Stat(certFile); os.IsNotExist(err) {
 				log.Println("Server certificate not found, using default certificates")
@@ -770,13 +815,13 @@ func main() {
 				certFile = "certs/ca.crt"
 				keyFile = "certs/ca.key"
 			}
-			
+
 			// Create server
 			server := &http.Server{
 				Addr:    ":" + strconv.Itoa(*port),
 				Handler: proxyHandler,
 			}
-			
+
 			// Start TLS server
 			log.Printf("Server is listening on port %d for HTTPS connections", *port)
 			if err := server.ListenAndServeTLS(certFile, keyFile); err != nil {
@@ -796,7 +841,7 @@ func main() {
 
 	// Serve static files from embedded file system
 	adminMux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFiles))))
-	
+
 	// Serve i18n files with proper content type from embedded file system
 	adminMux.HandleFunc("/i18n/", func(w http.ResponseWriter, r *http.Request) {
 		// Ensure the path is clean and within the expected directory
@@ -806,21 +851,21 @@ func main() {
 			r.URL.Path = upath
 		}
 		upath = path.Clean(upath)
-		
+
 		// Construct the file path relative to the embedded 'static' directory
 		// The 'static' prefix is already handled by the embed directive
 		filePath := path.Join("static/i18n", upath[len("/i18n/"):]) // Remove "/i18n/" prefix
-		
+
 		// Read the file from the embedded file system
 		content, err := staticFiles.ReadFile(filePath)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		// Set content type for JSON files
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		// Serve the file content
 		w.Write(content)
 	})
@@ -873,13 +918,14 @@ func main() {
 
 	// Admin API endpoints (protected)
 	adminMux.HandleFunc("/api/requests", authMiddleware(getRequests))
-	adminMux.HandleFunc("/api/requests/body/request/", authMiddleware(getRequestBodyHandler)) // /api/requests/body/request/{id}
+	adminMux.HandleFunc("/api/requests/body/request/", authMiddleware(getRequestBodyHandler))   // /api/requests/body/request/{id}
 	adminMux.HandleFunc("/api/requests/body/response/", authMiddleware(getResponseBodyHandler)) // /api/requests/body/response/{id}
-	adminMux.HandleFunc("/api/requests/", authMiddleware(getRequestDetail)) // Trailing slash for ID
+	adminMux.HandleFunc("/api/requests/", authMiddleware(getRequestDetail))                     // Trailing slash for ID
 	adminMux.HandleFunc("/api/replay", authMiddleware(replayRequest))
 	adminMux.HandleFunc("/api/start-recording", authMiddleware(startRecordingHandler))
 	adminMux.HandleFunc("/api/stop-recording", authMiddleware(stopRecordingHandler))
 	adminMux.HandleFunc("/api/recording-status", authMiddleware(getRecordingStatusHandler))
+	adminMux.HandleFunc("/api/export/har", authMiddleware(exportHARHandler))
 	adminMux.HandleFunc("/logout", logoutHandler)
 
 	// Root handler for admin interface
@@ -889,12 +935,12 @@ func main() {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
-		
+
 		content, err := staticFiles.ReadFile("static/index.html")
 		if err != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			log.Printf("Error reading embedded index.html: %v", err)
-			return	
+			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(content)
@@ -915,4 +961,3 @@ func main() {
 		log.Fatalf("Failed to start admin server: %v", err)
 	}
 }
-

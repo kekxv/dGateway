@@ -47,6 +47,7 @@
   "enter_password": "请输入密码",
   "start_recording": "开始记录",
   "stop_recording": "停止记录",
+  "export_har": "导出HAR",
   "recording_status_recording": "记录中",
   "recording_status_stopped": "已停止",
   "recording_status_unknown": "状态未知",

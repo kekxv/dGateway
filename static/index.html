@@ -753,6 +753,7 @@
                 <span id="recordingStatus" style="margin-right: 1rem; font-weight: bold;">Recording: Stopped</span>
                 <button class="btn btn-success" id="startRecordingButton"><i class="fas fa-play-circle"></i> <span data-i18n="start_recording">开始记录</span></button>
                 <button class="btn btn-danger" id="stopRecordingButton" disabled><i class="fas fa-stop-circle"></i> <span data-i18n="stop_recording">停止记录</span></button>
+                <button class="btn btn-primary" id="exportHARButton"><i class="fas fa-file-export"></i> <span data-i18n="export_har">导出HAR</span></button>
                 <select id="languageSelector" class="language-selector">
                     <option value="zh-CN" selected>中文</option>
                     <option value="en-US">English</option>
@@ -1034,6 +1035,7 @@
             const recordingStatusSpan = document.getElementById('recordingStatus');
             const startRecordingButton = document.getElementById('startRecordingButton');
             const stopRecordingButton = document.getElementById('stopRecordingButton');
+            const exportHARButton = document.getElementById('exportHARButton');
 
             let currentRequestData = null; // To store data of the request being viewed/replayed
             let currentPage = 1;
@@ -1099,6 +1101,17 @@
                     console.error('Error stopping recording:', error);
                     showNotification(i18n.t('recording_stopped_error'), 'error');
                 }
+            });
+
+            // Event listener for export HAR button
+            exportHARButton.addEventListener('click', () => {
+                // Create a temporary link element
+                const link = document.createElement('a');
+                link.href = '/api/export/har';
+                link.download = 'dgateway-export.har';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
             });
 
             // Initialize date inputs with today and 7 days ago

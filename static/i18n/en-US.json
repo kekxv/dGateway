@@ -47,6 +47,7 @@
   "enter_password": "Enter password",
   "start_recording": "Start Recording",
   "stop_recording": "Stop Recording",
+  "export_har": "Export HAR",
   "recording_status_recording": "Recording",
   "recording_status_stopped": "Stopped",
   "recording_status_unknown": "Unknown",
