@@ -67,8 +67,17 @@ jobs:
         # Build for different platforms
         GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-windows-amd64.exe" .
         GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-linux-amd64" .
+        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-linux-arm64" .
         GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-amd64" .
         GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o "release/dGateway-${{ env.VERSION }}-darwin-arm64" .
+
+    - name: Get previous tag
+      id: get_previous_tag
+      if: env.TAG_EXISTS == 'false'
+      run: |
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^)
+        echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_ENV
+        echo "Previous tag: $PREVIOUS_TAG"
 
     - name: Create tag
       if: env.TAG_EXISTS == 'false'
@@ -78,6 +87,14 @@ jobs:
         git tag -a "v${{ env.VERSION }}" -m "Release version ${{ env.VERSION }}"
         git push origin "v${{ env.VERSION }}"
 
+    - name: Generate release body
+      if: env.TAG_EXISTS == 'false'
+      run: |
+        REPO_URL="https://github.com/${{ github.repository }}"
+        CHANGELOG_LINK="${REPO_URL}/compare/${{ env.PREVIOUS_TAG }}...v${{ env.VERSION }}"
+        echo "**Full Changelog**: ${CHANGELOG_LINK}" >> release_body.md
+        cat README.md >> release_body.md
+
     - name: Create Release
       if: env.TAG_EXISTS == 'false'
       uses: actions/create-release@v1
@@ -86,7 +103,7 @@ jobs:
       with:
         tag_name: v${{ env.VERSION }}
         release_name: Release v${{ env.VERSION }}
-        body_path: ./README.md
+        body_path: ./release_body.md
         draft: false
         prerelease: false
 
