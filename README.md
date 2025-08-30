@@ -1,5 +1,7 @@
 # dGateway - A Go-based Test Gateway
 
+View Screenshots：[Screenshots](assets)
+
 dGateway is a simple HTTP/HTTPS proxy that logs all incoming requests and their corresponding responses to an SQLite database. It also provides a web-based administration panel to view, inspect, and replay these recorded requests.
 
 ## Features
